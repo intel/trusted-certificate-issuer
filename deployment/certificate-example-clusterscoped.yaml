@@ -1,0 +1,23 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: sample-cert1-sgx-ca
+  namespace: default
+spec:
+  secretName: sample-cert
+  commonName: otherexample.com
+  isCA: false
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS1
+    size: 3072
+  usages:
+  - server auth
+  - client auth
+  dnsNames:
+  - otherexample.com
+  issuerRef:
+   name: sgx-ca
+   kind: TCSClusterIssuer
+   group: tcs.intel.com
+

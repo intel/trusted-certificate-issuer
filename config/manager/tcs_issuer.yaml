@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    control-plane: tcs-issuer
+  name: tcs-issuer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller
+  namespace: system
+  labels:
+    control-plane: tcs-issuer
+spec:
+  selector:
+    matchLabels:
+      control-plane: tcs-issuer
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        control-plane: tcs-issuer
+      annotations:
+        sgx.intel.com/quote-provider: aesmd
+    spec:
+      initContainers:
+      - name: init
+        image: busybox
+        imagePullPolicy: IfNotPresent
+        ## Set appropriate permissions to tokens directory.
+        ## The tcs-issuer container runs with UID 5000(tcs-issuer username).
+        command: ["/bin/chown", "-R", "5000:5000", "/home/tcs-issuer/tokens"]
+        volumeMounts:
+        - mountPath: /home/tcs-issuer/tokens
+          name: tokens-dir
+      containers:
+      - command:
+        - /tcs-issuer
+        args:
+        - --leader-elect
+        - --zap-devel
+        - --zap-log-level=5
+        - --metrics-bind-address=:8082
+        - --health-probe-bind-address=:8083
+        - --user-pin=$USER_PIN
+        - --so-pin=$SO_PIN
+        image: tcs-issuer
+        imagePullPolicy: Always
+        name: tcs-issuer
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8083
+          initialDelaySeconds: 10
+          periodSeconds: 180
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8083
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          limits:
+            cpu: 100m
+            memory: 30Mi
+            sgx.intel.com/enclave: 1
+            sgx.intel.com/epc: 512Ki
+          requests:
+            cpu: 100m
+            memory: 20Mi
+            sgx.intel.com/enclave: 1
+            sgx.intel.com/epc: 512Ki
+        env:
+        - name: USER_PIN
+          valueFrom:
+            secretKeyRef:
+              name: tcs-issuer-pkcs11-conf
+              key: userpin
+        - name: SO_PIN
+          valueFrom:
+            secretKeyRef:
+              name: tcs-issuer-pkcs11-conf
+              key: sopin
+        volumeMounts:
+          # This is the path expected/configured by the crypto-api-toolkit
+          # for (un)sealing the tokens. Do not change this path.
+          - mountPath: /home/tcs-issuer/tokens
+            name: tokens-dir
+      serviceAccountName: tcs-issuer-serviceaccount
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - hostPath:
+          path: /var/lib/tcs-issuer/tokens
+          type: DirectoryOrCreate
+        name: tokens-dir

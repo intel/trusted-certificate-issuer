@@ -1,0 +1,6 @@
+apiVersion: tcs.intel.com/v1alpha1
+kind: TCSClusterIssuer
+metadata:
+    name: sgx-ca
+spec:
+    secretName: sgx-ca-secret-cluster

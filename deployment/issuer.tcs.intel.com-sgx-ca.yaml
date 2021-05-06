@@ -1,0 +1,9 @@
+apiVersion: tcs.intel.com/v1alpha1
+kind: TCSIssuer
+metadata:
+    name: sgx-ca
+    namespace: sandbox
+spec:
+    secretName: sgx-ca
+    selfSign: true
+

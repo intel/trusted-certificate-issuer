@@ -1,0 +1,23 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: sample-cert2-sgx-ca
+  namespace: sandbox
+spec:
+  secretName: sample-cert
+  commonName: example.com
+  isCA: false
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS1
+    size: 3072
+  usages:
+  - server auth
+  - client auth
+  dnsNames:
+  - example.com
+  issuerRef:
+   name: sgx-ca
+   kind: TCSIssuer
+   group: tcs.intel.com
+

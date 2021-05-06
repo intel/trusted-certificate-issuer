@@ -1,0 +1,124 @@
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: role
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificaterequests
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificaterequests/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificaterequests/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - certificatesigningrequests
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - certificatesigningrequests/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - certificatesigningrequests/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - certificates.k8s.io
+  resourceNames:
+  - tcsclusterissuer.tcs.intel.com/*
+  - tcsissuer.tcs.intel.com/*
+  resources:
+  - signers
+  verbs:
+  - sign
+- apiGroups:
+  - tcs.intel.com
+  resources:
+  - quoteattestations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - tcs.intel.com
+  resources:
+  - quoteattestations/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - tcs.intel.com
+  resources:
+  - quoteattestations/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - tcs.intel.com
+  resources:
+  - tcsclusterissuers
+  - tcsissuers
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - tcs.intel.com
+  resources:
+  - tcsclusterissuers/status
+  - tcsissuers/status
+  verbs:
+  - get
+  - patch
+  - update

@@ -1,0 +1,38 @@
+domain: tcs.intel.com
+layout:
+- go.kubebuilder.io/v3
+projectName: trusted-certificate-issuer
+repo: github.com/intel/trusted-certificate-issuer
+resources:
+- controller: true
+  domain: k8s.io
+  group: certificates
+  kind: CertificateSigningRequest
+  version: v1
+- controller: true
+  group: cert-manager.io
+  kind: CertificateRequest
+  version: v1
+- api:
+    crdVersion: v1alpha1
+    namespaced: true
+  controller: true
+  kind: QuoteAttestation
+  path: trusted-certificate-issuer/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1alpha1
+    namespaced: true
+  controller: true
+  domain: tcs.intel.com
+  kind: TCSIssuer
+  path: trusted-certificate-issuer/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1alpha1
+  controller: true
+  domain: tcs.intel.com
+  kind: ClusterIssuer
+  path: trusted-certificate-issuer/api/v1alpha1
+  version: v1alpha1
+version: "3"

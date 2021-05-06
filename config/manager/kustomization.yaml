@@ -1,0 +1,22 @@
+resources:
+- tcs_issuer.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+- files:
+  - tcs_issuer_config.yaml
+  name: config
+
+secretGenerator:
+- envs:
+  - .env.secret
+  name: issuer-pkcs11-conf
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+images:
+- name: tcs-issuer
+  newName: intel/trusted-certificate-issuer
+  newTag: latest
