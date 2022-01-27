@@ -1,4 +1,4 @@
-# Trusted Certificate Service Issuer for Kubernetes
+# Trusted Certificate Service for Kubernetes
 <!-- Table of contents is auto generated using 
 [Auto Markdown TOC](https://marketplace.visualstudio.com/items?itemName=huntertran.auto-markdown-toc) extension -->
 <!-- TOC depthfrom:2 -->
