@@ -10,7 +10,7 @@
 ## Overview
 
 <!-- TODO: Review and rephrase this section -->
-The Trusted Certificate Serivce (TCS) Issuer is a Kubernetes certificate management 
+The Trusted Certificate Serivce (TCS) is a Kubernetes certificate management 
 controller that provides a certificate authority (CA) service using the security
 features provided by the Intel® SGX on platforms with SGX Flexible Launch Control enabled.
 
