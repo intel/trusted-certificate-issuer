@@ -14,7 +14,7 @@
 
 ## Overview
 
-This document describes about the API provided by the SGX operator for integrating external key services for securely provisioning the certificate authority private key and certificate.
+This document describes Trusted Certificate Service (TCS) API used for integrating with external key services to securely provision the certificate authority private key and certificate.
 
 ## QuoteAttestation CRD
 
