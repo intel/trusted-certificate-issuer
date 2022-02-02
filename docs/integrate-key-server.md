@@ -1,15 +1,21 @@
 
 ## Remote attestation and key management (manual)
 
-By default, the Trusted Certificate Service (TCS) expects the CA private key and root certificate are provisioned by an external key management services like [Intel® KMRA](https://01.org/key-management-reference-application-kmra). For integrating such key servers the SGX operator provides a Kubernetes CRD API named `QuoteAttestation`, which is based on [SGX ECDSA attestation](https://www.intel.com/content/www/us/en/developer/articles/technical/quote-verification-attestation-with-intel-sgx-dcap.html) defined by the [Intel® SGX Data Center Attestation Primitives](https://github.com/intel/SGXDataCenterAttestationPrimitives).
+Trusted Certificate Service (TCS) supports SGX remote attestation and sample key management reference application.
 
-On startup, TCS creates a `QuoteAttestation` object with it's base64 encoded SGX enclave quote(EREPORT)<sup>[1]</sup> and a PEM encoded public key. An attestation-controller, or similar, running inside the cluster must validate the identity of the TCS (by contacting the key-server running out side the cluster) using the provided quote. Only on successful attestation the key-server must create a Kubernetes secret with the encrypted<sup>[2]</sup> CA private key and the CA certificate and, update the `QuoteAttestation` object status with appropriate values. Then the TCS's SGX enclave decrypts the CA private key and, both the CA private key and CA certificate are stored securely inside the enclave.
+[Remote attestation](https://www.intel.com/content/www/us/en/developer/tools/software-guard-extensions/attestation-services.html) is an advanced feature which allows an entity to gain relying party's trust. Remote attestation gives the relying party increased confidence that the software is running inside a SGX enclave. The attestation results includes the identity of the software being attested and an assesment of possible software tampering.
+
+Key management enables external key management systems' to deliver the certificates and keys via secure mechanisms into the SGX enclave. 
+
+**NOTE**: In this release we only support manual operations which are for demonstration purposes only. In the future releases will add more capabilities to the attestation and key management. 
+
+The core mechanism to integrate the attestation and key management is a Kubernetes Custom Resource Definition (CRD) `QuoteAttestation`, which is based on [SGX ECDSA attestation](https://www.intel.com/content/www/us/en/developer/articles/technical/quote-verification-attestation-with-intel-sgx-dcap.html) defined by the [Intel® SGX Data Center Attestation Primitives](https://github.com/intel/SGXDataCenterAttestationPrimitives).
+
+[Intel® KMRA](https://01.org/key-management-reference-application-kmra) project provides command line tools which can read, write and update the `QuoteAttestation`. The KMRA tools also do the attestation and key management based on the information from the `QuoteAttestation`.
 
 Refer to [QuoteAttestation CRD API](./docs/quote-attestation-api.md) for further details.
 
-**NOTE**: The cluster admins must regulate the access to the `QuoteAttestation` resource with appropriate [Kubernetes RBAC ((Role Based Access Control)](https://kubernetes.io/docs/reference/access-authn-authz/rbac/) rules such that no other component in the cluster could create/access/alter the QuoteAttestation object other than, the TCS and attestation-controller (or similar).
-
-<sup>1</sup> TCS generates the enclave quote using Intel® AESM (Application Enclave Service Manager) daemon, which provides the abstraction to access [Architectural Enclaves](https://github.com/intel/linux-sgx/tree/master/psw/ae).
+**NOTE**: The cluster admins must regulate the access to the `QuoteAttestation` resource with appropriate [Kubernetes RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/) (Role Based Access Control) rules such that no other component in the cluster can create/write/update/delete the `QuoteAttestation` object other than, the Trusted Certificate Service (`tcs-issuer` Kubernetes pod).
 
 ## Prerequisites for running this example:
 
@@ -27,7 +33,7 @@ kubectl apply -f deployment/tcs_issuer.yaml
 ```
 ## Create (non-self-signed) issuer
 
-Ensure that the `spec.selfSign` of the issuer set to `false`
+Ensure that the `spec.selfSign` of the issuer set to `false` indicating that TCS will not create self-signed certificate but expects it to be provided via other mechanism.
 
 ```sh
 kubectl create ns sandbox
@@ -43,12 +49,12 @@ spec:
 EOF
 ```
 
-Once the above issuer is created, the `tcs-issuer` creates a
+Once the above issuer is created, the TCS creates a
  `QuoteAttestation` custom resource (CR) and waits for an
 external key-management server to verify the quote and provision
 the CA private key and certificate. The issuer is not ready before the quote attestation is done and CA private key and certificate are delivered.
 
-You can verify that the `QuoteAttestation` CR exists:
+You can verify that the `QuoteAttestation` exists:
 
 ```sh
 $ kubectl get quoteattestations.tcs.intel.com -n tcs-issuer
@@ -56,8 +62,7 @@ NAME                                          AGE
 sandbox.external-ca.tcsissuer.tcs.intel.com   21s
 ```
 
-In the lack of attestation-controller, we will use `manual key attestation` mechanism. That is, we use command line tools to read and write the `QuoteAttestation` CR manually. You get the tools, `km-attest` and `km-wrap`, provided by the
-[Intel® KMRA project](https://01.org/key-management-reference-application-kmra).
+We use command line tools to read and write the `QuoteAttestation` manually. You get the tools, `km-attest` and `km-wrap`, provided by the [Intel® KMRA project](https://01.org/key-management-reference-application-kmra).
 
 Once you have the tools installed, you can start the quote attestation and key management operations.
 

@@ -28,8 +28,12 @@ Prerequisites for building and running Trusted Certificate Service:
 
 - Kubernetes cluster with one or more nodes with Intel® [SGX](https://software.intel.com/content/www/us/en/develop/topics/software-guard-extensions.html) supported hardware
 - [Intel® SGX device plugin](https://github.com/intel/intel-device-plugins-for-kubernetes/blob/main/cmd/sgx_plugin/README.md) for Kubernetes
-- [Intel® SGX AESM daemon](https://github.com/intel/linux-sgx/tree/master/psw/ae/aesm_service)
-- [cert-manager](https://github.com/jetstack/cert-manager)
+- [Intel® SGX AESM daemon](https://github.com/intel/linux-sgx#install-the-intelr-sgx-psw)
+- [cert-manager](https://cert-manager.io/next-docs/installation/). The `cmtool` is also used later in the examples so you may want to install it also.
+- Linux kernel version 5.11 or later on the host (in tree SGX driver)
+- git, or similar tool, to obtain the source code
+- Docker, or similar tool, to build container images
+- Container registry ([local](https://docs.docker.com/registry/deploying/) or remote)
 
 ### Installation
 
@@ -38,7 +42,7 @@ This section covers how to obtain the source code, build and install it.
 1. Getting the source code
 
 ```sh
-$ git clone https://github.com/intel/trusted-certificate-issuer.git
+git clone https://github.com/intel/trusted-certificate-issuer.git
 ```
 2. Build and push the container image
 
@@ -55,14 +59,15 @@ $ make docker-push
 3. Deploy custom resource definitions (CRDs)
 
 ```sh
-$ export KUBECONFIG='/path/to/cluster/config'
-$ make install # Install CRDs
+# set the KUBECONFIG based on your configuration
+export KUBECONFIG="$HOME/.kube/config"
+make install # Install CRDs
 ```
 
 4. Make the deployment
 
 ```sh
-$ make deploy
+make deploy
 ```
 
 By default, `tcs-issuer` namespace is used for the deployment.
@@ -181,7 +186,7 @@ secret/my-ca-cert            kubernetes.io/tls                     2      3h14m
 This example shows how to request an X509 certificate signed by the Trusted Certificate Service
 using Kubernetes CSR.
 
-First generated a PEM encoded private key (`privkey.pem`) and certificate signing request (`csr.pem`)
+First, generate a PEM encoded private key (`privkey.pem`) and certificate signing request (`csr.pem`)
 using `openssl` tool:
 
 ```sh
@@ -193,7 +198,7 @@ The `spec.signerName` field must refer to the TCS issuer we configured earlier
 in the form of `<issuer-type>.<issuer-group>/<issuer-namespace>.<issuer-name>`.
 In this example the signer name is `tcsissuer.tcs.intel.com/sandbox.my-ca`.
 
-**Note:** that the issuer namespace in case of `tcsclusterissuer` is the namespace
+**Note:** the issuer namespace in the case of `tcsclusterissuer` is the namespace
 of the Trusted Certificate Service. 
 
 ```sh
