@@ -70,8 +70,15 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 # additional arguments to pass to 'docker build'
 BUILD_ARGS ?=
-docker-build: vendor ## Build docker image with the manager.
+# Adjust this argument and accodingly the 'enclave-config/sign-enclave.sh'
+# script in CI build system to reflect with the right private key
+# and/or signing with external tool.
+DOCKER_BUILD_DEPS ?= enclave-config/privatekey.pem
+docker-build: ${DOCKER_BUILD_DEPS} vendor ## Build docker image with the manager.
 	docker build ${BUILD_ARGS} -t ${IMG} .
+
+enclave-config/privatekey.pem:
+	openssl genrsa -3 -out enclave-config/privatekey.pem 3072
 
 docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
