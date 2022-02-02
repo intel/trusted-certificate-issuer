@@ -89,9 +89,24 @@ RUN set -x && apt-get update \
   && cd /opt/intel/crypto-api-toolkit \
   # disable building tests
   && sed -i -e 's;test;;g' ./src/Makefile.am \
+  # disable enclave signing inside CTK
+  && sed -i -e '/libp11SgxEnclave.signed.so/d' ./src/p11/trusted/Makefile.am \
   && ./autogen.sh \
   && ./configure --enable-dcap --with-token-path=/home/tcs-issuer \
   && make && make install
+
+# Sign the enclave with custom config.
+COPY enclave-config enclave-config
+ENV SGX_SIGN=/opt/intel/sgxsdk/bin/x64/sgx_sign
+RUN set -x; cd /opt/intel/crypto-api-toolkit/src/p11/trusted \
+  && ${SGX_SIGN} gendata -enclave ./.libs/libp11SgxEnclave.so.0.0.0 -out /tmp/libp11SgxEnclave.unsigned -config /opt/intel/enclave-config/p11Enclave.config.xml \
+  && /opt/intel/enclave-config/sign-enclave.sh -in /tmp/libp11SgxEnclave.unsigned -out /tmp/libp11SgxEnclave.signature -keyout /opt/intel/enclave-config/enclave-publickey.pem \
+  && ${SGX_SIGN} catsig -enclave ./.libs/libp11SgxEnclave.so.0.0.0 \
+                 -config /opt/intel/enclave-config/p11Enclave.config.xml \
+                 -sig /tmp/libp11SgxEnclave.signature -key /opt/intel/enclave-config/enclave-publickey.pem \
+                 -unsigned /tmp/libp11SgxEnclave.unsigned \
+                 -out /usr/local/lib/libp11SgxEnclave.signed.so \
+  && echo "----- Generated signed enclave! ----"
 
 WORKDIR /workspace
 RUN curl -L https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz | tar -zxf - -C / \
@@ -188,6 +203,7 @@ RUN useradd --create-home --home-dir /home/tcs-issuer --shell /bin/bash --uid 50
 
 COPY --from=builder /manager /tcs-issuer
 COPY --from=builder /usr/local/lib/libp11* /usr/local/lib/
+COPY --from=builder /opt/intel/enclave-config/enclave-publickey.pem /usr/local/share/enclave-publickey.pem
 COPY --from=builder /usr/local/share/package-licenses /usr/local/share/package-licenses
 COPY --from=sources /usr/local/share/package-sources /usr/local/share/package-sources
 
