@@ -47,7 +47,7 @@ import (
 
 var _ = Describe("CSR controller", func() {
 	const (
-		testSinger    = "tcsissuer.tcs.intel.com/default.test-signer"
+		testSigner    = "tcsissuer.tcs.intel.com/default.test-signer"
 		unknownSigner = "foo.bar.com/unknown"
 	)
 
@@ -69,15 +69,15 @@ var _ = Describe("CSR controller", func() {
 			expectedRequeue: false,
 		},
 		"ignore unapproved request": {
-			csr:             newCSR("pending-csr", testSinger, request, "", nil),
+			csr:             newCSR("pending-csr", testSigner, request, "", nil),
 			expectedRequeue: false,
 		},
 		"ignore denied request": {
-			csr:             newCSR("denied-csr", testSinger, request, csrv1.CertificateDenied, nil),
+			csr:             newCSR("denied-csr", testSigner, request, csrv1.CertificateDenied, nil),
 			expectedRequeue: false,
 		},
 		"shall return appropriate error when signer not ready": {
-			csr:             newCSR("signer-ready-csr", testSinger, request, csrv1.CertificateApproved, nil),
+			csr:             newCSR("signer-ready-csr", testSigner, request, csrv1.CertificateApproved, nil),
 			isApproved:      true,
 			isSignerReady:   false,
 			expectedRequeue: true,
@@ -85,7 +85,7 @@ var _ = Describe("CSR controller", func() {
 		},
 		"should able to sign certificate": {
 			provisionCA:         true,
-			csr:                 newCSR("valid-csr", testSinger, request, csrv1.CertificateApproved, []csrv1.KeyUsage{csrv1.UsageCodeSigning}),
+			csr:                 newCSR("valid-csr", testSigner, request, csrv1.CertificateApproved, []csrv1.KeyUsage{csrv1.UsageCodeSigning}),
 			isApproved:          true,
 			isSignerReady:       true,
 			expectedRequeue:     false,
@@ -95,7 +95,7 @@ var _ = Describe("CSR controller", func() {
 
 	var fakeKeyProvider keyprovider.KeyProvider
 	var controller *controllers.CSRReconciler
-	knownSigners := []string{testSinger}
+	knownSigners := []string{testSigner}
 
 	BeforeEach(func() {
 		Expect(cfg).ShouldNot(BeNil())
@@ -148,7 +148,7 @@ var _ = Describe("CSR controller", func() {
 				cert, err := testutils.NewCACertificate(key, time.Now(), 365*24*time.Hour, true)
 				Expect(err).ShouldNot(HaveOccurred(), "failed to create ca certificate")
 
-				_, err = fakeKeyProvider.ProvisionSigner(testSinger, tlsutil.EncodeKey(key), cert)
+				_, err = fakeKeyProvider.ProvisionSigner(testSigner, tlsutil.EncodeKey(key), cert)
 				Expect(err).ShouldNot(HaveOccurred(), "failed to provision key")
 			}
 
@@ -202,7 +202,7 @@ var _ = Describe("CSR controller", func() {
 				crt, err := tlsutil.DecodeCert(csr.Status.Certificate)
 				Expect(err).ShouldNot(HaveOccurred(), "failed parse signed certificate")
 
-				s, err := fakeKeyProvider.GetSignerForName(testSinger)
+				s, err := fakeKeyProvider.GetSignerForName(testSigner)
 				Expect(err).ShouldNot(HaveOccurred(), "failed to get CA signer")
 
 				Expect(crt.Issuer).Should(BeEquivalentTo(s.Certificate().Issuer), "unexpected certificate issuer")

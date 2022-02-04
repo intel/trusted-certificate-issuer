@@ -160,7 +160,7 @@ func QuoteAttestationDelete(ctx context.Context, c client.Client, instanceName s
 // Converts signer name to valid Kubernetes object name
 //  Ex:- intel.com/tcs -> tcs.intel.com
 //       tcsissuer.tcs.intel.com/sgx-ca1 -> sgx-ca1.tcsissuer.intel.tcs.com
-func SingerNameToResourceName(signerName string) string {
+func SignerNameToResourceName(signerName string) string {
 	slices := strings.SplitN(signerName, "/", 2)
 	if len(slices) == 2 {
 		return slices[1] + "." + slices[0]

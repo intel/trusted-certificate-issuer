@@ -163,7 +163,7 @@ func (ctx *SgxContext) SignerNames() []string {
 
 func (ctx *SgxContext) addSigner(name string) (*signer.Signer, error) {
 	if s := ctx.signers.Get(name); s != nil {
-		// It is not an error to call multiple adds on a singer
+		// It is not an error to call multiple adds on a signer
 		ctx.log.Info("Ignore add signer as already exists", "signerName", name)
 		return s, nil
 	}
@@ -238,7 +238,7 @@ func (ctx *SgxContext) findSignerInToken(name string) (crypto11.Signer, *x509.Ce
 	} else if key != nil {
 		key.Delete()
 	} else if errKey == nil && errCert == nil {
-		ctx.log.Info("No CA details found  in token", "singer", name)
+		ctx.log.Info("No CA details found  in token", "signer", name)
 	} else {
 		ctx.log.Info("Failed to load CA from token", "certErr", errCert, "keyErr", errKey)
 	}
@@ -270,7 +270,7 @@ func (ctx *SgxContext) RemoveSigner(name string) error {
 		if err := ctx.removeSignerInToken(s); err != nil {
 			return err
 		}
-		secretName := k8sutil.SingerNameToResourceName(s.Name())
+		secretName := k8sutil.SignerNameToResourceName(s.Name())
 		k8sutil.DeleteCASecret(context.Background(), ctx.k8sClient, secretName, "")
 	} else if s.Pending() {
 		if err := k8sutil.QuoteAttestationDelete(context.TODO(), ctx.k8sClient, s.AttestationCRName(), ""); err != nil {
@@ -307,7 +307,7 @@ func (ctx *SgxContext) ProvisionSigner(signerName string, encryptedKey []byte, c
 
 	s := ctx.signers.Get(signerName)
 	if s == nil || !s.Pending() {
-		ctx.log.Info("ignoring unexpected provision key request for", "singer", signerName)
+		ctx.log.Info("ignoring unexpected provision key request for", "signer", signerName)
 		return nil, nil
 	}
 
@@ -318,7 +318,7 @@ func (ctx *SgxContext) ProvisionSigner(signerName string, encryptedKey []byte, c
 	}
 
 	if err := ctx.provisionCertificate(signerName, cert); err != nil {
-		return nil, fmt.Errorf("failed to provision certificate for singer '%s': %v", signerName, err)
+		return nil, fmt.Errorf("failed to provision certificate for signer '%s': %v", signerName, err)
 	}
 
 	// Wrapped SWK - AES256 (with input public key) + Wrapped input private key (with SWK),
@@ -569,7 +569,7 @@ func (ctx *SgxContext) initiateQuoteAttestation(pending []*signer.Signer) (err e
 	name := qaPrefix + strconv.FormatUint(ctx.qaCounter, 10)
 	ctx.qaCounter++
 	if len(pending) == 1 {
-		name = k8sutil.SingerNameToResourceName(pending[0].Name())
+		name = k8sutil.SignerNameToResourceName(pending[0].Name())
 	}
 	pubKey, err := ctx.quotePublicKey()
 	if err != nil {

@@ -96,7 +96,7 @@ func (r *QuoteAttestationReconciler) loadSecret(ctx context.Context, signerName,
 	key := client.ObjectKey{Name: secretName, Namespace: namespace}
 
 	if err := r.Get(ctx, key, secret); err != nil {
-		r.Log.Error(err, "Failed to secret", "secret", secret, "singer", signerName)
+		r.Log.Error(err, "Failed to get secret", "secret", secret, "signer", signerName)
 		return err
 	}
 
