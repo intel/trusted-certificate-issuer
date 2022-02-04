@@ -17,7 +17,7 @@ const (
 	// New signer whose secrets are not available
 	// with the operator.
 	new SignerState = "New"
-	// Pending represents a pending attestation request for the singer.
+	// Pending represents a pending attestation request for the signer.
 	pending SignerState = "Pending"
 	// Ready represents the signer secrets are available and
 	// is ready serving.

@@ -31,13 +31,13 @@ type KeyProvider interface {
 
 	// AddSigner starts process of initiating a new signer withe given name.
 	// Returns error if it fails do so. Adding signer is an asynchronous process.
-	// Use GetSingerForName() to retrieve the initialized signer.
+	// Use GetSignerForName() to retrieve the initialized signer.
 	AddSigner(signerName string, selfSign bool) (*signer.Signer, error)
 
 	// RemoveSigner removes the secrets stored for the given signerName.
 	RemoveSigner(signerName string) error
 
-	// GetSignerForName returns the available signer for give singerName.
+	// GetSignerForName returns the available signer for give signerName.
 	// Returns "not found" error if the given signerName is not found in the list.
 	// Returns any other error occurred while provisioning the CA.
 	GetSignerForName(signerName string) (*signer.Signer, error)
