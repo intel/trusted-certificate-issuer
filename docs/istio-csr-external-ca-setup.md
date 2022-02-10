@@ -32,7 +32,7 @@ kubectl apply -f deployment/crds/
 kubectl apply -f deployment/tcs_issuer.yaml
 ```
 
-Create a TCS Issuer that could sign certificates for `istio-system` namespace. We also create the `istio-namespace` since that is where the certificates will be placed.
+Create a TCS Issuer that could sign certificates for `istio-system` namespace. We also create the `istio-system` namespace since that is where the certificates will be placed.
 
 ```sh
 kubectl create namespace istio-system
@@ -85,7 +85,7 @@ cert-manager-istio-csr-b79d7575c-ghgmk   1/1     Running   0          81s
 Install Istio with custom configuration:
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/cert-manager/istio-csr/main/docs/istio-config-getting_started.yaml > istio-install-config.yaml
+curl -sSL https://raw.githubusercontent.com/cert-manager/istio-csr/main/docs/istio-config-getting-started.yaml > istio-install-config.yaml
 istioctl install -f istio-install-config.yaml
 ```
 
