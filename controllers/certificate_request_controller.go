@@ -155,7 +155,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 		if ready := cmutil.GetCertificateRequestCondition(cr, cmapi.CertificateRequestConditionReady); ready == nil {
 			l.Info("Initializing Ready condition")
 			setReadyCondition(cmmeta.ConditionFalse, cmapi.CertificateRequestReasonPending, "Initializing")
-			return ctrl.Result{Requeue: true}, nil
+			return ctrl.Result{}, nil
 		}
 
 		issuerRef := &IssuerRef{
@@ -180,18 +180,18 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 		c := issuerStatus.GetCondition(tcsapi.IssuerConditionReady)
 		if c == nil || c.Status == v1.ConditionFalse {
-			return ctrl.Result{Requeue: true, RequeueAfter: time.Minute}, errIssuerNotReady
+			return ctrl.Result{}, errIssuerNotReady
 		}
 
 		signerName := SignerNameForIssuer(issuer.GetObjectKind().GroupVersionKind(), issuer.GetName(), issuer.GetNamespace())
 		s, err := r.KeyProvider.GetSignerForName(signerName)
 		if err != nil {
-			return ctrl.Result{Requeue: true, RequeueAfter: time.Minute}, fmt.Errorf("failed to get signer for name '%s': %v", signerName, err)
+			return ctrl.Result{}, fmt.Errorf("failed to get signer for name '%s': %v", signerName, err)
 		}
 
 		ca, err := selfca.NewCA(s, s.Certificate())
 		if err != nil {
-			return ctrl.Result{Requeue: true, RequeueAfter: time.Minute}, fmt.Errorf("failed to prepare CA: %v", err)
+			return ctrl.Result{}, fmt.Errorf("failed to prepare CA: %v", err)
 		}
 
 		keyUsage, extKeyUsage, err := cmpki.BuildKeyUsages(cr.Spec.Usages, cr.Spec.IsCA)
