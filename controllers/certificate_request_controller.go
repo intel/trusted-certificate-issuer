@@ -38,7 +38,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -77,9 +76,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if r == nil {
 		return ctrl.Result{Requeue: false}, fmt.Errorf("nil reconciler")
 	}
-	l := r.Log.WithValues("reconcile", req.NamespacedName)
-
-	l.Info("cr Reconcile")
+	l := r.Log.WithValues("req", req.NamespacedName)
 
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
@@ -91,6 +88,10 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{Requeue: true, RequeueAfter: time.Minute}, err
 	}
 
+	l.Info("Reconcile")
+
+	patch := client.MergeFrom(cr.DeepCopy())
+
 	// We now have a cr that belongs to us so we are responsible
 	// for updating its Ready condition.
 	setReadyCondition := func(status cmmeta.ConditionStatus, reason, message string) {
@@ -99,14 +100,18 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	ignore := false
 	defer func() {
-		if !ignore {
-			if err != nil {
-				setReadyCondition(cmmeta.ConditionFalse, cmapi.CertificateRequestReasonPending, err.Error())
-			}
-			if updateErr := r.Status().Update(ctx, cr); updateErr != nil {
-				err = utilerrors.NewAggregate([]error{err, updateErr})
-				result = ctrl.Result{}
-			}
+		if ignore {
+			return
+		}
+		if err != nil {
+			setReadyCondition(cmmeta.ConditionFalse, cmapi.CertificateRequestReasonPending, err.Error())
+			// Reset err to nil, otherwise the controller will
+			// retry the request assuming that reconcile failure.
+			err = nil
+		}
+		l.Info("Updating CR status")
+		if updateErr := r.Client.Status().Patch(ctx, cr, patch); updateErr != nil {
+			err = fmt.Errorf("error patching the CertificateRequest status: %v", updateErr)
 		}
 	}()
 
@@ -150,7 +155,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 		if ready := cmutil.GetCertificateRequestCondition(cr, cmapi.CertificateRequestConditionReady); ready == nil {
 			l.Info("Initializing Ready condition")
 			setReadyCondition(cmmeta.ConditionFalse, cmapi.CertificateRequestReasonPending, "Initializing")
-			return ctrl.Result{Requeue: true}, nil
+			return ctrl.Result{}, nil
 		}
 
 		issuerRef := &IssuerRef{
@@ -175,18 +180,18 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 		c := issuerStatus.GetCondition(tcsapi.IssuerConditionReady)
 		if c == nil || c.Status == v1.ConditionFalse {
-			return ctrl.Result{Requeue: true, RequeueAfter: time.Minute}, errIssuerNotReady
+			return ctrl.Result{}, errIssuerNotReady
 		}
 
 		signerName := SignerNameForIssuer(issuer.GetObjectKind().GroupVersionKind(), issuer.GetName(), issuer.GetNamespace())
 		s, err := r.KeyProvider.GetSignerForName(signerName)
 		if err != nil {
-			return ctrl.Result{Requeue: true, RequeueAfter: time.Minute}, fmt.Errorf("failed to get signer for name '%s': %v", signerName, err)
+			return ctrl.Result{}, fmt.Errorf("failed to get signer for name '%s': %v", signerName, err)
 		}
 
 		ca, err := selfca.NewCA(s, s.Certificate())
 		if err != nil {
-			return ctrl.Result{Requeue: true, RequeueAfter: time.Minute}, fmt.Errorf("failed to prepare CA: %v", err)
+			return ctrl.Result{}, fmt.Errorf("failed to prepare CA: %v", err)
 		}
 
 		keyUsage, extKeyUsage, err := cmpki.BuildKeyUsages(cr.Spec.Usages, cr.Spec.IsCA)
@@ -194,20 +199,15 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 			return ctrl.Result{}, fmt.Errorf("key usage error> %v", err)
 		}
 
-		l.Info("Signing", "CertificateRequest", req)
+		l.Info("Signing ...")
 		cert, err := ca.Sign(cr.Spec.Request, keyUsage, extKeyUsage)
 		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to sign CSR for signing: %v", err)
+			return ctrl.Result{}, fmt.Errorf("failed to sign CertificateRequest: %v", err)
 		}
 
-		patch := client.MergeFrom(cr.DeepCopy())
 		cr.Status.Certificate = tlsutil.EncodeCert(cert)
-		if err := r.Client.Status().Patch(ctx, cr, patch); err != nil {
-			return ctrl.Result{Requeue: true, RequeueAfter: time.Minute}, fmt.Errorf("error patching CSR: %v", err)
-		}
-		l.Info("Signing done")
-
 		setReadyCondition(cmmeta.ConditionTrue, cmapi.CertificateRequestReasonIssued, "Signed")
+		l.Info("Signing done")
 	}
 
 	return ctrl.Result{}, nil
