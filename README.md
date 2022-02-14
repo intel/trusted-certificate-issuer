@@ -35,7 +35,11 @@ Prerequisites for building and running Trusted Certificate Service:
 - Docker, or similar tool, to build container images
 - Container registry ([local](https://docs.docker.com/registry/deploying/) or remote)
 
-### Installation
+### Installing with Helm 
+
+If you want to use Helm to install TCS see the document [here](./docs/helm.md).
+
+### Installing with source code
 
 This section covers how to obtain the source code, build and install it.
 
