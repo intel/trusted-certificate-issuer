@@ -127,3 +127,7 @@ GOBIN=$(PROJECT_DIR)/bin go get $(2) ;\
 rm -rf $$TMP_DIR ;\
 }
 endef
+
+helm:
+	cp -rf deployment/crds charts
+	helm package charts
