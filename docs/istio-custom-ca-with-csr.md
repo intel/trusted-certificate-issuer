@@ -6,7 +6,7 @@ certificates using an Issuer provided by the Trusted Certificate Service (TCS).
 
 ## Prerequisites for running this example:
 
-  - istioctl
+  - istioctl (version 1.13 or later)
   - Kubernetes cluster with at least one Intel SGX enabled node
   
 ## Deployment
@@ -85,12 +85,9 @@ EOF
 
 Install istio with the generated `istio-custom-ca.yaml` deployment file.
 
-NOTE: istio 1.13 release candidate images are used for now. You should also have the same `istioctl` version as the istio container images. 
 
 ```sh
-export TAG=1.13-alpha.1c8e0b627d77a1827cfe090e7b206df5fe8239a1
-export HUB=gcr.io/istio-testing
-istioctl install -y --set tag=$TAG --set hub=$HUB -f istio-custom-ca.yaml
+istioctl install -y -f istio-custom-ca.yaml
 ```
 
 ## Sample application
