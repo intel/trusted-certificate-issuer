@@ -1,0 +1,7 @@
+apiVersion: v2
+name: tcs-issuer
+description: A Helm chart for Trusted Certificate Service for Kubernetes Platform
+home: https://github.com/intel/trusted-certificate-issuer
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
