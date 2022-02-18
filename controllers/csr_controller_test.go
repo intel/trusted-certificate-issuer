@@ -108,7 +108,7 @@ var _ = Describe("CSR controller", func() {
 
 		fakeKeyProvider = testutils.NewKeyProvider(signers)
 
-		controller = controllers.NewCSRReconciler(k8sClient, scheme, fakeKeyProvider)
+		controller = controllers.NewCSRReconciler(k8sClient, scheme, fakeKeyProvider, false)
 	})
 
 	AfterEach(func() {
