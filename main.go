@@ -65,6 +65,7 @@ func main() {
 	flag.StringVar(&cfg.HSMTokenLabel, "token-label", "SgxOperator", "PKCS11 label to use for the operator token.")
 	flag.StringVar(&cfg.HSMUserPin, "user-pin", "", "PKCS11 token user pin.")
 	flag.StringVar(&cfg.HSMSoPin, "so-pin", "", "PKCS11 token so/admin pin.")
+	flag.BoolVar(&cfg.CSRFullCertChain, "csr-full-cert-chain", false, "Return full certificate chain in Kubernetes CSR certificate.")
 
 	opts := zap.Options{}
 	opts.BindFlags(flag.CommandLine)
@@ -126,7 +127,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "QuoteAttestation")
 		os.Exit(1)
 	}
-	if err = controllers.NewCSRReconciler(mgr.GetClient(), mgr.GetScheme(), sgxctx).SetupWithManager(mgr); err != nil {
+	if err = controllers.NewCSRReconciler(mgr.GetClient(), mgr.GetScheme(), sgxctx, cfg.CSRFullCertChain).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CSR")
 		os.Exit(1)
 	}

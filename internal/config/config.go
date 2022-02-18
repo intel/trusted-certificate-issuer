@@ -25,6 +25,7 @@ type Config struct {
 	HealthProbeAddress string
 	LeaderElection     bool
 	CertManagerIssuer  bool
+	CSRFullCertChain   bool
 
 	HSMTokenLabel string
 	HSMUserPin    string
