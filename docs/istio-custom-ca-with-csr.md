@@ -114,7 +114,7 @@ reviews-v2-759759586-lpftf        2/2     Running   0          52s
 reviews-v3-bb5f95b65-phmx6        2/2     Running   0          51s
 ```
 
-You can monitor the certifcate signing requests (CSR) being created, approved and signed with the follwoing command:
+You can monitor the certificate signing requests (CSR) being created, approved and signed with the following command:
 
 ```sh
 kubectl get csr -A -w
