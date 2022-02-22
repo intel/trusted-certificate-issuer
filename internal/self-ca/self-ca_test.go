@@ -98,7 +98,7 @@ func TestSelfCA(t *testing.T) {
 		csrBytes, err := testutils.NewCertificateRequest(key, pkix.Name{CommonName: "client-service"})
 		require.NoError(t, err, "create CSR")
 
-		_, err = ca.Sign(testutils.EncodeCSR(csrBytes), x509.KeyUsageCRLSign, nil)
+		_, err = ca.Sign(testutils.EncodeCSR(csrBytes), x509.KeyUsageCRLSign, nil, nil)
 		require.NoError(t, err, "sign client certificate")
 	})
 }

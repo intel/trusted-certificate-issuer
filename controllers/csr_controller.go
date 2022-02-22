@@ -20,15 +20,20 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"fmt"
+
 	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/intel/trusted-certificate-issuer/api/v1alpha1"
 	tcsapi "github.com/intel/trusted-certificate-issuer/api/v1alpha1"
+	"github.com/intel/trusted-certificate-issuer/internal/k8sutil"
 	"github.com/intel/trusted-certificate-issuer/internal/keyprovider"
 	selfca "github.com/intel/trusted-certificate-issuer/internal/self-ca"
 	"github.com/intel/trusted-certificate-issuer/internal/tlsutil"
+
 	crtv1 "k8s.io/api/certificates/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -37,10 +42,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
-	RetryTimeout = 5 * time.Second
+	RetryTimeout     = 5 * time.Second
+	ExtensionMessage = "SGX Quote has been verified"
 )
 
 // CSRReconciler reconciles a CSR object
@@ -161,12 +170,49 @@ func (r *CSRReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return ctrl.Result{}, fmt.Errorf("signing failed: %v", err)
 	}
 
-	cert, err := ca.Sign(csr.Spec.Request, keyUsage, extKeyUsage)
+	certRequest, err := tlsutil.DecodeCertRequest(csr.Spec.Request)
 	if err != nil {
-		return retry, fmt.Errorf("error auto signing csr: %v", err)
+		l.Info("Can't decode x509 CSR:", "error", err)
+		return reconcile.Result{}, nil
 	}
 
 	patch := client.MergeFrom(csr.DeepCopy())
+
+	csrExtensions := []pkix.Extension{}
+	if CSRNeedsQuoteVerification(certRequest) {
+		verified, retry, err := ValidateCSRQuote(ctx, r.Client, &csr, certRequest, csr.Spec.SignerName)
+		if err != nil {
+			l.Error(err, "unable to validate CSR quote")
+			return reconcile.Result{Requeue: retry}, nil
+		}
+		if retry {
+			return reconcile.Result{Requeue: true}, nil
+		}
+		if !verified {
+			csr.Status.Conditions = append(csr.Status.Conditions, crtv1.CertificateSigningRequestCondition{
+				Type:           crtv1.CertificateDenied,
+				Status:         v1.ConditionFalse,
+				Reason:         "Attestation failed",
+				Message:        "This CSR was denied since quote attestation failed",
+				LastUpdateTime: metav1.Now(),
+			})
+			if err := r.Client.Status().Patch(ctx, &csr, patch); err != nil {
+				l.Error(err, "error patching CSR status")
+			}
+			return ctrl.Result{}, nil
+		}
+		verifyExtension, err := GetQuoteVerifiedExtension(ExtensionMessage)
+		if err != nil {
+			l.Error(err, "failed to prepare quote verified extension")
+			return reconcile.Result{}, nil
+		}
+		csrExtensions = append(csrExtensions, *verifyExtension)
+	}
+
+	cert, err := ca.Sign(csr.Spec.Request, keyUsage, extKeyUsage, csrExtensions)
+	if err != nil {
+		return retry, fmt.Errorf("error auto signing csr: %v", err)
+	}
 	if r.fullCertChain {
 		l.Info("Preparing full certificate chain")
 		// NOTE(avalluri): This is a temporary solution to make it work with Istio v1.12,
@@ -180,11 +226,11 @@ func (r *CSRReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		csr.Status.Certificate = certChain
 	} else {
 		csr.Status.Certificate = tlsutil.EncodeCert(cert)
+		l.Info("Signing done", "withExtensions", cert.Extensions)
 	}
 	if err := r.Client.Status().Patch(ctx, &csr, patch); err != nil {
 		return retry, fmt.Errorf("error patching CSR: %v", err)
 	}
-	l.Info("Signing done")
 	//r.EventRecorder.Event(&csr, v1.EventTypeNormal, "Signed", "The CSR has been signed")
 
 	return ctrl.Result{}, nil
@@ -198,8 +244,24 @@ func (r *CSRReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				APIVersion: crtv1.SchemeGroupVersion.String(),
 				Kind:       "CertificateSigningRequest",
 			},
-		}).
-		Complete(r)
+		}).WithEventFilter(predicate.Funcs{
+		DeleteFunc: func(de event.DeleteEvent) bool {
+			qa := &v1alpha1.QuoteAttestation{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      de.Object.GetName(),
+					Namespace: k8sutil.GetNamespace(),
+				},
+			}
+			ctx, cancel := context.WithTimeout(context.TODO(), time.Duration(time.Minute))
+			defer cancel()
+			if err := k8sutil.UnsetFinalizer(ctx, r.Client, qa, func() client.Object {
+				return qa.DeepCopy()
+			}); err != nil {
+				r.Log.Info("Failed to update finalizer", "for", qa.Name, "error", err)
+			}
+			return false
+		},
+	}).Complete(r)
 }
 
 // isCSRApproved checks if the given Kubernetes certificate signing request

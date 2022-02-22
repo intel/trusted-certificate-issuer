@@ -641,7 +641,7 @@ func (ctx *SgxContext) generateQuote(pubKey pkcs11.ObjectHandle) ([]byte, *rsa.P
 		return nil, nil, fmt.Errorf("quote generation failure: invalid quote")
 	}
 
-	publicKey, err := parseQuotePublickey(quotePubKey[:offset])
+	publicKey, err := ParseQuotePublickey(quotePubKey[:offset])
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to parse quote public key: %v", err)
 	}
@@ -649,12 +649,12 @@ func (ctx *SgxContext) generateQuote(pubKey pkcs11.ObjectHandle) ([]byte, *rsa.P
 	return quotePubKey[offset:], publicKey, nil
 }
 
-// parseQuotePublickey reconstruct the rsa public key
+// ParseQuotePublickey reconstruct the rsa public key
 // from received bytes, received bytes structure like this:
 // pubkey_params   |    ulExponentLen   |    ulModulusLen
 // need to slice ulExponentLen and ulModulusLen to
 // reconstruct pubkey according to the size of each item
-func parseQuotePublickey(pubkey []byte) (*rsa.PublicKey, error) {
+func ParseQuotePublickey(pubkey []byte) (*rsa.PublicKey, error) {
 	paramsSize := uint64(C.rsa_key_params_size())
 	exponentLen := uint64(C.ulExponentLen_offset(*(*C.CK_BYTE_PTR)(unsafe.Pointer(&pubkey))))
 	modulusOffset := paramsSize + exponentLen
