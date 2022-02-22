@@ -199,7 +199,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 
 		l.Info("Signing ...")
-		cert, err := ca.Sign(cr.Spec.Request, keyUsage, extKeyUsage)
+		cert, err := ca.Sign(cr.Spec.Request, keyUsage, extKeyUsage, nil)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to sign CertificateRequest: %v", err)
 		}

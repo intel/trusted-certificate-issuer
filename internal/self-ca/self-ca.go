@@ -18,6 +18,7 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 
 	"github.com/intel/trusted-certificate-issuer/internal/tlsutil"
 	cmpki "github.com/jetstack/cert-manager/pkg/util/pki"
@@ -91,7 +92,7 @@ func (ca *CA) EncodedCertificate() []byte {
 	return tlsutil.EncodeCert(ca.cert)
 }
 
-func (ca *CA) Sign(csrPEM []byte, keyUsage x509.KeyUsage, extKeyUsage []x509.ExtKeyUsage) (*x509.Certificate, error) {
+func (ca *CA) Sign(csrPEM []byte, keyUsage x509.KeyUsage, extKeyUsage []x509.ExtKeyUsage, extensions []pkix.Extension) (*x509.Certificate, error) {
 	if ca == nil {
 		return nil, fmt.Errorf("nil CA")
 	}
@@ -103,6 +104,7 @@ func (ca *CA) Sign(csrPEM []byte, keyUsage x509.KeyUsage, extKeyUsage []x509.Ext
 	}
 	tmpl.Issuer = ca.cert.Issuer
 	tmpl.Version = tls.VersionTLS12
+	tmpl.ExtraExtensions = extensions
 
 	certBytes, err := x509.CreateCertificate(rand.Reader, tmpl, ca.cert, tmpl.PublicKey, ca.prKey)
 	*tmpl = x509.Certificate{}

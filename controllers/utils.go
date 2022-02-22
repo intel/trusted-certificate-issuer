@@ -17,10 +17,19 @@ package controllers
 
 import (
 	"context"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
+	"encoding/base64"
 	"fmt"
 	"strings"
 
 	tcsapi "github.com/intel/trusted-certificate-issuer/api/v1alpha1"
+	"github.com/intel/trusted-certificate-issuer/internal/k8sutil"
+	"github.com/intel/trusted-certificate-issuer/internal/sgx"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -113,4 +122,125 @@ func GetIssuer(ctx context.Context,
 	}
 
 	return issuer, nil
+}
+
+var (
+	// FIXME (avalluri): These identifiers needs to be in sync with
+	// values defined in intel/Istio:
+	// https://github.com/intel/istio/blob/release-1.15-intel/security/pkg/nodeagent/sds/sgxconfig.go#L57-L58
+	//
+	// oidQuote represents the ASN.1 OBJECT IDENTIFIER for the SGX quote
+	// and quote validation result.
+	oidQuote = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 54392, 5, 1283}
+	// oidQuotePublicKey represents the ASN.1 OBJECT IDENTIFIER for the
+	// public key used for generating the SGX quote.
+	oidQuotePublicKey = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 54392, 5, 1284}
+)
+
+// CSRNeedsQuoteVerification checks if QuoteValidation extension set in the
+// given csr
+func CSRNeedsQuoteVerification(csr *x509.CertificateRequest) bool {
+	for _, val := range csr.Extensions {
+		if val.Id.Equal(oidQuote) {
+			return true
+		}
+	}
+	return false
+}
+
+// ValidateCSRQuote validates the quote information embedded in the
+// given certificate signing request. Returns if any error occur doing so.
+//
+// When this function returns with retry, means the quote verification is
+// is in progress so, recall this method after sometime. Otherwise, the
+// verification result is returned.
+func ValidateCSRQuote(ctx context.Context, c client.Client, obj client.Object, csr *x509.CertificateRequest, signer string) (verified, retry bool, err error) {
+	nsName := client.ObjectKey{Name: obj.GetName(), Namespace: obj.GetNamespace()}
+	if nsName.Namespace == "" {
+		nsName.Namespace = k8sutil.GetNamespace()
+	}
+	qa := &tcsapi.QuoteAttestation{}
+	if err := c.Get(ctx, nsName, qa); err != nil && errors.IsNotFound(err) {
+		// means no quoteattestation object, create new one
+		csrquote, publickey, err := getQuoteAndPublicKeyFromCSR(csr.Extensions)
+		if err != nil {
+			return false, false, fmt.Errorf("incomplete information to verify quote from csr extensions: %v", err)
+		}
+
+		ownerRef := &metav1.OwnerReference{
+			APIVersion: obj.GetObjectKind().GroupVersionKind().GroupVersion().String(),
+			Kind:       obj.GetObjectKind().GroupVersionKind().Kind,
+			Name:       obj.GetName(),
+			UID:        obj.GetUID(),
+		}
+		if err := k8sutil.QuoteAttestationDeliver(ctx, c, nsName, tcsapi.RequestTypeQuoteAttestation, signer, csrquote, publickey, "", ownerRef, nil); err != nil {
+			return false, true, fmt.Errorf("failed to initiate quote attestation: %v", err)
+		}
+		return false, true, nil
+	} else if err != nil {
+		return false, true, fmt.Errorf("failed to fetch existing QuoteAttestation object: %v", err)
+	}
+
+	status := qa.Status.GetCondition(tcsapi.ConditionReady)
+	if status == nil || status.Status == v1.ConditionUnknown {
+		// Still quote is verification not verified, retry later
+		return false, true, nil
+	}
+	// Remove quote attestation object
+	defer c.Delete(context.Background(), qa)
+	return status.Status == v1.ConditionTrue, false, nil
+}
+
+func getQuoteAndPublicKeyFromCSR(extensions []pkix.Extension) ([]byte, *rsa.PublicKey, error) {
+	decodeExtensionValue := func(value []byte) ([]byte, error) {
+		strValue := ""
+		if _, err := asn1.Unmarshal(value, &strValue); err != nil {
+			return nil, err
+		}
+		return base64.StdEncoding.DecodeString(strValue)
+	}
+	var encPublickey, quote []byte
+	var err error
+	var publickey *rsa.PublicKey
+	for _, ext := range extensions {
+		if ext.Id.Equal(oidQuote) {
+			quote, err = decodeExtensionValue(ext.Value)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to unmarshal SGX quote extension value: %v", err)
+			}
+		} else if ext.Id.Equal(oidQuotePublicKey) {
+			encPublickey, err = decodeExtensionValue(ext.Value)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to unmarshal SGX quote extension value: %v", err)
+			}
+			publickey, err = sgx.ParseQuotePublickey(encPublickey)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to parse SGX quote publickey value: %v", err)
+			}
+		}
+	}
+	if quote == nil {
+		return nil, nil, fmt.Errorf("missing quote extension")
+	}
+	if publickey == nil {
+		return nil, nil, fmt.Errorf("missing quote public key extension")
+	}
+	return quote, publickey, nil
+}
+
+func GetQuoteVerifiedExtension(message string) (*pkix.Extension, error) {
+	val := asn1.RawValue{
+		Bytes: []byte(message),
+		Class: asn1.ClassUniversal,
+		Tag:   asn1.TagUTF8String,
+	}
+	bs, err := asn1.Marshal(val)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal the raw values for SGX field: %v", err)
+	}
+	return &pkix.Extension{
+		Id:       oidQuote,
+		Critical: false,
+		Value:    bs,
+	}, nil
 }
