@@ -206,6 +206,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 
 		cr.Status.Certificate = tlsutil.EncodeCert(cert)
+		cr.Status.CA = ca.EncodedCertificate()
 		setReadyCondition(cmmeta.ConditionTrue, cmapi.CertificateRequestReasonIssued, "Signed")
 		l.Info("Signing done")
 	}
