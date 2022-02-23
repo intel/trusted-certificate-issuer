@@ -29,7 +29,7 @@ Prerequisites for building and running Trusted Certificate Service:
 - Kubernetes cluster with one or more nodes with Intel® [SGX](https://software.intel.com/content/www/us/en/develop/topics/software-guard-extensions.html) supported hardware
 - [Intel® SGX device plugin](https://github.com/intel/intel-device-plugins-for-kubernetes/blob/main/cmd/sgx_plugin/README.md) for Kubernetes
 - [Intel® SGX AESM daemon](https://github.com/intel/linux-sgx#install-the-intelr-sgx-psw)
-- [cert-manager](https://cert-manager.io/next-docs/installation/). The `cmtool` is also used later in the examples so you may want to install it also.
+- [cert-manager](https://cert-manager.io/next-docs/installation/). The `cmctl` is also used later in the examples so you may want to install it also.
 - Linux kernel version 5.11 or later on the host (in tree SGX driver)
 - git, or similar tool, to obtain the source code
 - Docker, or similar tool, to build container images

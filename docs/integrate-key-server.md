@@ -13,7 +13,7 @@ The core mechanism to integrate the attestation and key management is a Kubernet
 
 [Intel® KMRA](https://01.org/key-management-reference-application-kmra) project provides command line tools which can read, write and update the `QuoteAttestation`. The KMRA tools also do the attestation and key management based on the information from the `QuoteAttestation`.
 
-Refer to [QuoteAttestation CRD API](./docs/quote-attestation-api.md) for further details.
+Refer to [QuoteAttestation CRD API](./quote-attestation-api.md) for further details.
 
 **NOTE**: The cluster admins must regulate the access to the `QuoteAttestation` resource with appropriate [Kubernetes RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/) (Role Based Access Control) rules such that no other component in the cluster can create/write/update/delete the `QuoteAttestation` object other than, the Trusted Certificate Service (`tcs-issuer` Kubernetes pod).
 
