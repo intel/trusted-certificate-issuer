@@ -57,8 +57,26 @@ const (
 	ECDSAQuoteVersion3 = "ECDSA Quote 3"
 )
 
+// QuoteAttestationRequestType type definition for representing
+// the type of attestation request
+type QuoteAttestationRequestType string
+
+const (
+	// RequestTypeQuoteAttestation represents the type of request
+	// is for only quote verification
+	RequestTypeQuoteAttestation = "QuoteAttestation"
+	// RequestTypeKeyProvisioning represents the type of request
+	// is for CA key provisioning where quote verification is a
+	// pre-requisite
+	RequestTypeKeyProvisioning = "KeyProvisioning"
+)
+
 // QuoteAttestationSpec defines the desired state of QuoteAttestation
 type QuoteAttestationSpec struct {
+	// Type represents the type of the request, one of "QuoteAttestation", "KeyProvisioning".
+	// +kubebuilder:validation:Enum=QuoteAttestation;KeyProvisioning
+	// +kubebuilder:validation:default=KeyProvisioning
+	Type QuoteAttestationRequestType `json:"type"`
 	// Quote to be verified, base64-encoded.
 	// +kubebuilder:listType=atomic
 	Quote []byte `json:"quote"`
