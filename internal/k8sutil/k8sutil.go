@@ -94,6 +94,7 @@ func QuoteAttestationDeliver(
 	ctx context.Context,
 	c client.Client,
 	instanceName, namespace string,
+	requestType tcsapi.QuoteAttestationRequestType,
 	signerNames []string,
 	quote []byte,
 	quotePubKey interface{},
@@ -116,6 +117,7 @@ func QuoteAttestationDeliver(
 			Namespace: namespace,
 		},
 		Spec: v1alpha1.QuoteAttestationSpec{
+			Type:         requestType,
 			Quote:        []byte(encQuote),
 			QuoteVersion: tcsapi.ECDSAQuoteVersion3,
 			SignerNames:  signerNames,
