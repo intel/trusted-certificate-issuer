@@ -583,11 +583,7 @@ func (ctx *SgxContext) initiateQuoteAttestation(pending []*signer.Signer) (err e
 	}
 	ctx.log.Info("Initiating quote attestation", "name", name, "forSigners", pending)
 	err = k8sutil.QuoteAttestationDeliver(
-<<<<<<< HEAD
-		context.TODO(), ctx.k8sClient, name, "", tcsapi.RequestTypeKeyProvisioning, names, ctx.ctkQuote, pubKey, ctx.cfg.HSMTokenLabel)
-=======
-		context.TODO(), ctx.k8sClient, name, ns, names, ctx.ctkQuote, pubKey, ctx.cfg.HSMTokenLabel)
->>>>>>> 4669c89... controllers/qa: create QA object in issuers name
+		context.TODO(), ctx.k8sClient, name, ns, tcsapi.RequestTypeKeyProvisioning, names, ctx.ctkQuote, pubKey, ctx.cfg.HSMTokenLabel)
 	if err != nil {
 		ctx.log.Info("ERROR: Failed to creat QA object")
 		return err

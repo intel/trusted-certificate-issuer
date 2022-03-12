@@ -13,7 +13,6 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/intel/trusted-certificate-issuer/api/v1alpha1"
 	tcsapi "github.com/intel/trusted-certificate-issuer/api/v1alpha1"
@@ -52,14 +51,16 @@ func GetNamespace() string {
 	return ns
 }
 
-func CreateCASecret(ctx context.Context, c client.Client, cert *x509.Certificate, name, ns string) error {
+func CreateCASecret(ctx context.Context, c client.Client, cert *x509.Certificate, name, ns string, owner metav1.OwnerReference) error {
 	if ns == "" {
 		ns = GetNamespace()
 	}
 	secret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: ns,
+			Name:            name,
+			Namespace:       ns,
+			OwnerReferences: []metav1.OwnerReference{owner},
+			Finalizers:      []string{TCSFinalizer},
 		},
 		Type: v1.SecretTypeTLS,
 		Data: map[string][]byte{
@@ -85,11 +86,11 @@ func DeleteCASecret(ctx context.Context, c client.Client, name, ns string) error
 		},
 	}
 
-	err := c.Delete(ctx, secret)
-	if err != nil && errors.IsNotFound(err) {
-		return nil
+	if err := UnsetFinalizer(ctx, c, secret, client.MergeFrom(secret)); err != nil {
+		return err
 	}
-	return err
+
+	return client.IgnoreNotFound(c.Delete(ctx, secret))
 }
 
 func QuoteAttestationDeliver(
@@ -155,7 +156,7 @@ func QuoteAttestationDelete(ctx context.Context, c client.Client, instanceName s
 		},
 	}
 
-	if err := client.IgnoreNotFound(UnsetFinalizer(ctx, c, sgxAttestation)); err != nil {
+	if err := UnsetFinalizer(ctx, c, sgxAttestation, client.MergeFrom(sgxAttestation)); err != nil {
 		return fmt.Errorf("failed unset finalizer for '%s/%s': %v", ns, instanceName, err)
 	}
 
@@ -179,12 +180,9 @@ func SignerNameToResourceNameAndNamespace(signerName string) (string, string) {
 	return slices[0], ""
 }
 
-func UnsetFinalizer(ctx context.Context, c client.Client, obj client.Object) error {
-	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(2*time.Minute))
-	defer cancel()
+func UnsetFinalizer(ctx context.Context, c client.Client, obj client.Object, patch client.Patch) error {
 	key := client.ObjectKeyFromObject(obj)
-	err := c.Get(timeoutCtx, key, obj)
-	if err != nil {
+	if err := client.IgnoreNotFound(c.Get(ctx, key, obj)); err != nil {
 		return err
 	}
 
@@ -200,10 +198,8 @@ func UnsetFinalizer(ctx context.Context, c client.Client, obj client.Object) err
 
 	if found {
 		obj.SetFinalizers(list)
-		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(2*time.Minute))
-		defer cancel()
-		if err := client.IgnoreNotFound(c.Update(timeoutCtx, obj)); err != nil {
-			return fmt.Errorf("failed to update finalizer (%v): %v", key, err)
+		if err := client.IgnoreNotFound(c.Patch(ctx, obj, patch)); err != nil {
+			return fmt.Errorf("failed to patch object (%v) with update finalizer : %v", key, err)
 		}
 	}
 	return nil
