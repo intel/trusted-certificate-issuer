@@ -271,10 +271,10 @@ func (ctx *SgxContext) RemoveSigner(name string) error {
 		if err := ctx.removeSignerInToken(s); err != nil {
 			return err
 		}
-		secretName := k8sutil.SignerNameToResourceName(s.Name())
-		k8sutil.DeleteCASecret(context.Background(), ctx.k8sClient, secretName, "")
-	} else if s.Pending() {
-		if err := k8sutil.QuoteAttestationDelete(context.TODO(), ctx.k8sClient, s.AttestationCRName(), ""); err != nil {
+		secretName, ns := k8sutil.SignerNameToResourceNameAndNamespace(s.Name())
+		k8sutil.DeleteCASecret(context.Background(), ctx.k8sClient, secretName, ns)
+	} else if name, ns := s.AttestationCRNameAndNamespace(); name != "" {
+		if err := k8sutil.QuoteAttestationDelete(context.TODO(), ctx.k8sClient, name, ns); err != nil {
 			return fmt.Errorf("failed to remove quote attestation object: %v", err)
 		}
 	}
@@ -568,9 +568,10 @@ func (ctx *SgxContext) initiateQuoteAttestation(pending []*signer.Signer) (err e
 	}
 
 	name := qaPrefix + strconv.FormatUint(ctx.qaCounter, 10)
+	ns := ""
 	ctx.qaCounter++
 	if len(pending) == 1 {
-		name = k8sutil.SignerNameToResourceName(pending[0].Name())
+		name, ns = k8sutil.SignerNameToResourceNameAndNamespace(pending[0].Name())
 	}
 	pubKey, err := ctx.quotePublicKey()
 	if err != nil {
@@ -582,14 +583,18 @@ func (ctx *SgxContext) initiateQuoteAttestation(pending []*signer.Signer) (err e
 	}
 	ctx.log.Info("Initiating quote attestation", "name", name, "forSigners", pending)
 	err = k8sutil.QuoteAttestationDeliver(
+<<<<<<< HEAD
 		context.TODO(), ctx.k8sClient, name, "", tcsapi.RequestTypeKeyProvisioning, names, ctx.ctkQuote, pubKey, ctx.cfg.HSMTokenLabel)
+=======
+		context.TODO(), ctx.k8sClient, name, ns, names, ctx.ctkQuote, pubKey, ctx.cfg.HSMTokenLabel)
+>>>>>>> 4669c89... controllers/qa: create QA object in issuers name
 	if err != nil {
 		ctx.log.Info("ERROR: Failed to creat QA object")
 		return err
 	}
 
 	for _, s := range pending {
-		s.SetPending(name)
+		s.SetPending(name, ns)
 	}
 
 	return nil

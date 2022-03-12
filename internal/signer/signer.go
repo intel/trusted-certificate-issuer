@@ -27,13 +27,17 @@ const (
 	failed SignerState = "Failed"
 )
 
+type attestationRequest struct {
+	name, namespace string
+}
+
 type Signer struct {
 	crypto.Signer
-	cert               *x509.Certificate
-	name               string
-	state              SignerState
-	err                error
-	attestationRequest string
+	cert  *x509.Certificate
+	name  string
+	state SignerState
+	err   error
+	req   attestationRequest
 }
 
 func NewSigner(name string) *Signer {
@@ -59,8 +63,8 @@ func (s Signer) Pending() bool {
 
 // AttestationCRName returns the name of the attestation request
 // name in case of a pending signer.
-func (s Signer) AttestationCRName() string {
-	return s.attestationRequest
+func (s Signer) AttestationCRNameAndNamespace() (string, string) {
+	return s.req.name, s.req.namespace
 }
 
 func (s Signer) Failed() (bool, error) {
@@ -88,10 +92,13 @@ func (s *Signer) SetError(err error) {
 	}
 }
 
-func (s *Signer) SetPending(requestName string) {
+func (s *Signer) SetPending(requestName, namespace string) {
 	if s.state != pending {
 		s.state = pending
-		s.attestationRequest = requestName
+		s.req = attestationRequest{
+			name:      requestName,
+			namespace: namespace,
+		}
 	}
 }
 
@@ -100,7 +107,7 @@ func (s *Signer) SetReady(cs crypto.Signer, cert *x509.Certificate) {
 	s.Signer = cs
 	s.cert = cert
 	s.err = nil
-	s.attestationRequest = ""
+	s.req = attestationRequest{}
 }
 
 type SignerMap struct {
