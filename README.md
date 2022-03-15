@@ -19,7 +19,7 @@
 ## Overview
 
 <!-- TODO: Review and rephrase this section -->
-Trusted Certificate Service (TCS) is a Kubernetes certificate signing solution that uses the security capabilities provided by the Intel® SGX. The signing key is stored and used inside the SGX enclave(s) and is never stored in clear anywhere in the system. TCS is implemented as a [cert-manager external issuer](https://cert-manager.io/docs/configuration/external/) by providing support for both cert-manager and kubernetes certificate siging APIs.
+Trusted Certificate Service (TCS) is a Kubernetes certificate signing solution that uses the security capabilities provided by the Intel® SGX. The signing key is stored and used inside the SGX enclave(s) and is never stored in clear anywhere in the system. TCS is implemented as a [cert-manager external issuer](https://cert-manager.io/docs/configuration/external/) by providing support for both cert-manager and kubernetes certificate signing APIs.
 
 ## Getting started
 
