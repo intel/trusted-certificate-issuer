@@ -305,6 +305,11 @@ spec:
         - --health-probe-bind-address=:8083
         - --user-pin=$USER_PIN
         - --so-pin=$SO_PIN
+        {{- if .Values.controllerExtraArgs }}
+        {{- with .Values.controllerExtraArgs }}
+        {{- tpl . $ | trim | nindent 8 }}
+        {{- end }}
+        {{- end }}
         command:
         - /tcs-issuer
         env:
