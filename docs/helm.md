@@ -4,14 +4,8 @@ This document covers how to install Trusted Certificate Service (TCS) issuer by 
 
 ## Prerequisites
 
-> NOTE: the charts are not yet hosted anywhere so you need to point the helm to the `charts` directory.
-
-Generate the Helm charts by using the following command.
-
-```sh
-$ make helm
-```
-
+- Helm 3.x
+- Kubernetes cluster with SGX node
 ## Installing the Chart
 
 Use the following command to install TCS (to namespace `tcs-issuer` which will be created).
@@ -19,7 +13,9 @@ Use the following command to install TCS (to namespace `tcs-issuer` which will b
 > NOTE: This will also install the CRDs.
 
 ```sh
-$ helm install tcs-issuer -n tcs-issuer --create-namespace ./charts
+$ helm repo add tcs https://intel.github.io/trusted-certificate-issuer
+$ helm repo update
+$ helm install tcs-issuer tcs/tcs-issuer -n tcs-issuer --create-namespace
 ```
 
 Use the following command to verify the TCS installation status.
