@@ -48,4 +48,5 @@ The following table lists the configurable parameters of the TCS issuer chart an
 | `image.name`| Image name | trusted-certificate-issuer |
 | `image.tag`| Image tag | latest |
 | `image.pullPolicy`| Image pull policy | Always |
+| `controllerExtraArgs`| List of extra arguments passed to the controller  | Empty |
 
