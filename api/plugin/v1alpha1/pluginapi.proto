@@ -1,0 +1,62 @@
+/*
+Copyright 2022.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+syntax = 'proto3';
+
+package v1alpha1;
+option go_package = "v1alpha1";
+
+service Registry {
+    rpc RegisterPlugin (RegisterPluginRequest) returns (RegisterKeyServerReply) {}
+} 
+
+message RegisterPluginRequest{
+    // Uniq name of the plugin
+    string name = 1;
+    // Plugin server socket address to register;
+    // This server has to offers Plugin functionality
+    // at this socket. The socket must be an UNIX filesystem path.
+    string address = 2;
+}
+
+message RegisterKeyServerReply {
+}
+
+service Plugin {
+    // GetCASecret retrieves the stored CA key and certificate at the key-manager
+	// for given signer signerName.
+	// On success, returns the key and certificate. 
+	// Otherwise, appropriate error gets returned.
+    rpc GetCASecret(GetCASecretRequest) returns (GetCASecretReply) {}
+}
+
+message GetCASecretRequest {
+    // CA signer name
+    string signerName = 1;
+    // base64 encoded public key used for generating the quote
+    bytes publicKey = 2;
+    // base64 encoded SGX Quote
+    bytes quote = 3;
+}
+
+message GetCASecretReply {
+    // The CA private key(PWK) is wrapped with a symmetric key(SWK)
+    // that was wrapped with the given publicKey. Both the SWK and
+    // PWK are concatenated and returned as single base64 encoded block. 
+    bytes wrappedKey = 1;
+    // base64 encoded PEM certificate
+    bytes certificate = 2;
+}
