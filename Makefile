@@ -68,6 +68,9 @@ test: vendor manifests fmt ## Run tests.
 build: generate generate-pluginapi fmt vet ## Build manager binary.
 	go build -o bin/tcs-issuer main.go
 
+build-plugins: generate-pluginapi fmt vet ## Build kmra-plugin binary.
+	go build -o bin/kmra-plugin ./plugins/kmra/main.go
+
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
