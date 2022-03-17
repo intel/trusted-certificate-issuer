@@ -45,6 +45,7 @@ spec:
         - --health-probe-bind-address=:8083
         - --user-pin=$USER_PIN
         - --so-pin=$SO_PIN
+        - --registry-path=/home/tcs-issuer/sockets/registry.sock
         image: tcs-issuer
         imagePullPolicy: Always
         name: tcs-issuer
@@ -90,6 +91,8 @@ spec:
           # for (un)sealing the tokens. Do not change this path.
           - mountPath: /home/tcs-issuer/tokens
             name: tokens-dir
+          - mountPath: /home/tcs-issuer/sockets
+            name: socket-dir
       serviceAccountName: tcs-issuer-serviceaccount
       terminationGracePeriodSeconds: 10
       volumes:
@@ -97,3 +100,5 @@ spec:
           path: /var/lib/tcs-issuer/tokens
           type: DirectoryOrCreate
         name: tokens-dir
+      - name : socket-dir
+        emptyDir: {}

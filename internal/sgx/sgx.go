@@ -58,6 +58,7 @@ import (
 	"github.com/intel/trusted-certificate-issuer/internal/config"
 	"github.com/intel/trusted-certificate-issuer/internal/k8sutil"
 	"github.com/intel/trusted-certificate-issuer/internal/keyprovider"
+	"github.com/intel/trusted-certificate-issuer/internal/registryserver"
 	selfca "github.com/intel/trusted-certificate-issuer/internal/self-ca"
 	"github.com/intel/trusted-certificate-issuer/internal/signer"
 	"github.com/miekg/pkcs11"
@@ -92,16 +93,18 @@ type SgxContext struct {
 	signers   *signer.SignerMap
 	qaCounter uint64
 	log       logr.Logger
+	registry  *registryserver.PluginRegistry
 }
 
 var _ keyprovider.KeyProvider = &SgxContext{}
 
-func NewContext(cfg config.Config, client client.Client) (*SgxContext, error) {
+func NewContext(cfg config.Config, client client.Client, registry *registryserver.PluginRegistry) (*SgxContext, error) {
 	ctx := &SgxContext{
 		cfg:       &cfg,
 		k8sClient: client,
 		log:       ctrl.Log.WithName("SGX"),
 		signers:   signer.NewSignerMap(),
+		registry:  registry,
 	}
 
 	if err := ctx.reloadCryptoContext(); err != nil {

@@ -34,6 +34,7 @@ import (
 	tcsapi "github.com/intel/trusted-certificate-issuer/api/v1alpha1"
 	"github.com/intel/trusted-certificate-issuer/controllers"
 	"github.com/intel/trusted-certificate-issuer/internal/config"
+	"github.com/intel/trusted-certificate-issuer/internal/registryserver"
 	"github.com/intel/trusted-certificate-issuer/internal/sgx"
 	//+kubebuilder:scaffold:imports
 )
@@ -66,6 +67,7 @@ func main() {
 	flag.StringVar(&cfg.HSMUserPin, "user-pin", "", "PKCS11 token user pin.")
 	flag.StringVar(&cfg.HSMSoPin, "so-pin", "", "PKCS11 token so/admin pin.")
 	flag.BoolVar(&cfg.CSRFullCertChain, "csr-full-cert-chain", false, "Return full certificate chain in Kubernetes CSR certificate.")
+	flag.StringVar(&cfg.RegistryEndpoint, "registry-endpoint", "/registry.sock", "The socket path where the controller provides plugin registry.")
 
 	opts := zap.Options{}
 	opts.BindFlags(flag.CommandLine)
@@ -93,7 +95,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	sgxctx, err := sgx.NewContext(cfg, mgr.GetClient())
+	registry, err := registryserver.NewPluginRegistry(cfg.RegistryEndpoint)
+	if err != nil {
+		setupLog.Error(err, "failed to registry server")
+	}
+
+	sgxctx, err := sgx.NewContext(cfg, mgr.GetClient(), registry)
 	if err != nil {
 		setupLog.Error(err, "SGX initialization")
 		os.Exit(1)
@@ -153,6 +160,8 @@ func main() {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
+
+	registry.Start()
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
