@@ -30,10 +30,14 @@ spec:
         imagePullPolicy: IfNotPresent
         ## Set appropriate permissions to tokens directory.
         ## The tcs-issuer container runs with UID 5000(tcs-issuer username).
-        command: ["/bin/chown", "-R", "5000:5000", "/home/tcs-issuer/tokens"]
+        command: ["/bin/chown", "-R", "5000:5000", "/home/tcs-issuer/tokens", "/registry", "/plugins"]
         volumeMounts:
         - mountPath: /home/tcs-issuer/tokens
           name: tokens-dir
+        - mountPath: /plugins/
+          name: plugins-dir
+        - mountPath: /registry/
+          name: plugins-dir
       containers:
       - command:
         - /tcs-issuer
@@ -45,7 +49,7 @@ spec:
         - --health-probe-bind-address=:8083
         - --user-pin=$USER_PIN
         - --so-pin=$SO_PIN
-        - --registry-path=/home/tcs-issuer/sockets/registry.sock
+        - --registry-endpoint=/registry/registry.sock
         image: tcs-issuer
         imagePullPolicy: Always
         name: tcs-issuer
@@ -91,8 +95,10 @@ spec:
           # for (un)sealing the tokens. Do not change this path.
           - mountPath: /home/tcs-issuer/tokens
             name: tokens-dir
-          - mountPath: /home/tcs-issuer/sockets
-            name: socket-dir
+          - mountPath: /plugins/
+            name: plugins-dir
+          - mountPath: /registry/
+            name: registry-dir
       serviceAccountName: tcs-issuer-serviceaccount
       terminationGracePeriodSeconds: 10
       volumes:
@@ -100,5 +106,7 @@ spec:
           path: /var/lib/tcs-issuer/tokens
           type: DirectoryOrCreate
         name: tokens-dir
-      - name : socket-dir
+      - name : registry-dir
+        emptyDir: {}
+      - name : plugins-dir
         emptyDir: {}

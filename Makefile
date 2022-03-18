@@ -97,12 +97,13 @@ install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/crd | kubectl delete -f -
 
-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/manager && $(KUSTOMIZE) edit set image tcs-issuer=${IMG}
+set-image: kustomize
+	cd config/manager && $(KUSTOMIZE) edit set image tcs-issuer=${IMG} && $(KUSTOMIZE) edit set image kmra-plugin=${IMG}
+
+deploy: manifests kustomize set-image ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
-deploy-manifests: manifests kustomize
-	cd config/manager && $(KUSTOMIZE) edit set image tcs-issuer=${IMG}
+deploy-manifests: manifests kustomize set-image
 	mkdir -p deployment && $(KUSTOMIZE) build config/default -o deployment/tcs_issuer.yaml
 	mkdir -p deployment/crds && $(KUSTOMIZE) build -o deployment/crds config/crd
 ## Rename CRDs; remove prefixed type information

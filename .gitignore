@@ -31,3 +31,4 @@ enclave-config/privatekey.pem
 *~
 charts/crds
 tcs-issuer*.tgz
+config/manager/kmra/.*
