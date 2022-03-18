@@ -129,11 +129,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	r := controllers.NewQuoteAttestationReconciler(mgr.GetClient(), sgxctx, nil)
-	if err := r.SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "QuoteAttestation")
-		os.Exit(1)
-	}
 	if err = controllers.NewCSRReconciler(mgr.GetClient(), mgr.GetScheme(), sgxctx, cfg.CSRFullCertChain).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CSR")
 		os.Exit(1)

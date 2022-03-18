@@ -49,7 +49,6 @@ import (
 	"math/big"
 	"os/exec"
 	"runtime"
-	"strconv"
 	"sync"
 	"time"
 	"unsafe"
@@ -121,7 +120,6 @@ func NewContext(cfg config.Config, client client.Client, registry *registryserve
 		}
 	}
 
-	// provision CA key using QuoteAttestation CRD
 	ctx.p11Ctx = pkcs11.New(SgxLibrary)
 
 	ctx.log.Info("Initiating p11Session...")
@@ -200,30 +198,8 @@ func (ctx *SgxContext) AddSigner(name string, selfSign bool) (*signer.Signer, er
 			return s, err
 		}
 		return s, ctx.fetchSignerSecret(s, "kmra")
-		//return s, ctx.initiateQuoteAttestation([]*signer.Signer{s})
 	}
 	return s, err
-}
-
-func (ctx *SgxContext) AddSigners(names []string) error {
-	if ctx == nil || ctx.cryptoCtx == nil {
-		return fmt.Errorf("sgx context not initialized")
-	}
-
-	for _, name := range names {
-		s, err := ctx.addSigner(name)
-		if err == nil && !errors.Is(err, keyprovider.ErrNotFound) {
-			s.SetError(err)
-		}
-	}
-
-	if pending := ctx.signers.UnInitializedSigners(); len(pending) != 0 {
-		if err := ctx.ensureQuote(); err != nil {
-			return err
-		}
-		return ctx.initiateQuoteAttestation(pending)
-	}
-	return nil
 }
 
 func (ctx *SgxContext) findSignerInToken(name string) (crypto11.Signer, *x509.Certificate, error) {
@@ -278,12 +254,7 @@ func (ctx *SgxContext) RemoveSigner(name string) error {
 		}
 		secretName := k8sutil.SignerNameToResourceName(s.Name())
 		k8sutil.DeleteCASecret(context.Background(), ctx.k8sClient, secretName, "")
-	} else if s.Pending() {
-		if err := k8sutil.QuoteAttestationDelete(context.TODO(), ctx.k8sClient, s.AttestationCRName(), ""); err != nil {
-			return fmt.Errorf("failed to remove quote attestation object: %v", err)
-		}
 	}
-
 	ctx.signers.Delete(s)
 
 	return nil
@@ -609,54 +580,6 @@ func (ctx *SgxContext) fetchSignerSecret(s *signer.Signer, pluginName string) (e
 
 	if _, err := ctx.ProvisionSigner(s.Name(), encryptedKey, caCert); err != nil {
 		return fmt.Errorf("failed to provision CA secret: %v", err)
-	}
-
-	return nil
-}
-
-func (ctx *SgxContext) initiateQuoteAttestation(pending []*signer.Signer) (err error) {
-	qaPrefix := "sgx.quote.attestation.deliver-"
-	if len(pending) == 0 {
-		// No CA signer needs provisioning, just ignore the call.
-		return nil
-	}
-
-	defer func() {
-		if err != nil {
-			for _, s := range pending {
-				s.SetError(err)
-			}
-		}
-	}()
-
-	if ctx.quotePubKey == 0 || ctx.quotePrvKey == 0 || ctx.ctkQuote == nil {
-		// FIXME: create quote and keypair
-		return fmt.Errorf("nil SGX quote or quote keypair")
-	}
-
-	name := qaPrefix + strconv.FormatUint(ctx.qaCounter, 10)
-	ctx.qaCounter++
-	if len(pending) == 1 {
-		name = k8sutil.SignerNameToResourceName(pending[0].Name())
-	}
-	pubKey, err := ctx.quotePublicKey()
-	if err != nil {
-		return err
-	}
-	names := []string{}
-	for _, ps := range pending {
-		names = append(names, ps.Name())
-	}
-	ctx.log.Info("Initiating quote attestation", "name", name, "forSigners", pending)
-	err = k8sutil.QuoteAttestationDeliver(
-		context.TODO(), ctx.k8sClient, name, "", names, ctx.ctkQuote, pubKey, ctx.cfg.HSMTokenLabel)
-	if err != nil {
-		ctx.log.Info("ERROR: Failed to creat QA object")
-		return err
-	}
-
-	for _, s := range pending {
-		s.SetPending(name)
 	}
 
 	return nil

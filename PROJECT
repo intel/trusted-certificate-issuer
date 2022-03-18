@@ -17,13 +17,6 @@ resources:
     crdVersion: v1alpha1
     namespaced: true
   controller: true
-  kind: QuoteAttestation
-  path: trusted-certificate-issuer/api/v1alpha1
-  version: v1alpha1
-- api:
-    crdVersion: v1alpha1
-    namespaced: true
-  controller: true
   domain: tcs.intel.com
   kind: TCSIssuer
   path: trusted-certificate-issuer/api/v1alpha1
