@@ -41,6 +41,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -61,6 +62,7 @@ import (
 	"github.com/intel/trusted-certificate-issuer/internal/registryserver"
 	selfca "github.com/intel/trusted-certificate-issuer/internal/self-ca"
 	"github.com/intel/trusted-certificate-issuer/internal/signer"
+	"github.com/intel/trusted-certificate-issuer/internal/tlsutil"
 	"github.com/miekg/pkcs11"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -197,7 +199,8 @@ func (ctx *SgxContext) AddSigner(name string, selfSign bool) (*signer.Signer, er
 			s.SetError(err)
 			return s, err
 		}
-		return s, ctx.initiateQuoteAttestation([]*signer.Signer{s})
+		return s, ctx.fetchSignerSecret(s, "kmra")
+		//return s, ctx.initiateQuoteAttestation([]*signer.Signer{s})
 	}
 	return s, err
 }
@@ -546,6 +549,68 @@ func (ctx *SgxContext) initializeSigner(s *signer.Signer) (err error) {
 
 	s.SetReady(dc, caCert)
 	ctx.log.Info("Crypto Keypair generated", "for", s.Name())
+	return nil
+}
+
+func (ctx *SgxContext) fetchSignerSecret(s *signer.Signer, pluginName string) (err error) {
+	defer func() {
+		if err != nil {
+			s.SetError(err)
+		}
+	}()
+
+	if ctx.quotePubKey == 0 || ctx.quotePrvKey == 0 || ctx.ctkQuote == nil {
+		// FIXME: create quote and keypair
+		return fmt.Errorf("nil SGX quote or quote keypair")
+	}
+
+	plugin := ctx.registry.GetPlugin(pluginName)
+	if plugin == nil {
+		return fmt.Errorf("no plugin registered with name '%s'", pluginName)
+	}
+	if !plugin.IsReady() {
+		return fmt.Errorf("plugin '%s' is not ready yet", pluginName)
+	}
+
+	pubKey, err := ctx.quotePublicKey()
+	if err != nil {
+		return fmt.Errorf("failed to fetch quote public key: %v", err)
+	}
+	encPubKey, err := tlsutil.EncodePublicKey(pubKey)
+	if err != nil {
+		return err
+	}
+
+	encQuote := base64.StdEncoding.EncodeToString(ctx.ctkQuote)
+
+	s.SetPending("dummy")
+	timeout, cancelFunc := context.WithTimeout(context.TODO(), time.Duration(2*time.Minute))
+	defer cancelFunc()
+	ctx.log.Info("Fetching secret from server", "serverNname", pluginName, "signer", s.Name())
+	wrappedKey, encCert, err := plugin.GetCASecret(timeout, s.Name(), []byte(encQuote), encPubKey)
+	if err != nil {
+		return fmt.Errorf("failed fetch CA secrets from server: %v", err)
+	}
+
+	encryptedKey, err := base64.StdEncoding.DecodeString(string(wrappedKey))
+	if err != nil {
+		return fmt.Errorf("corrupted key data: %v", err)
+	}
+
+	pemCert, err := base64.StdEncoding.DecodeString(string(encCert))
+	if err != nil {
+		return fmt.Errorf("corrupted certificate: %v", err)
+	}
+
+	caCert, err := tlsutil.DecodeCert(pemCert)
+	if err != nil {
+		return fmt.Errorf("corrupted certificate: %v", err)
+	}
+
+	if _, err := ctx.ProvisionSigner(s.Name(), encryptedKey, caCert); err != nil {
+		return fmt.Errorf("failed to provision CA secret: %v", err)
+	}
+
 	return nil
 }
 
