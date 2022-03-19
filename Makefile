@@ -48,6 +48,9 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
 
+generate-pluginapi: protoc
+	$(PROTOC) --go_out=plugins=grpc,paths=source_relative:. ./api/plugin/v1alpha1/pluginapi.proto
+
 fmt: ## Run go fmt against code.
 	@go fmt ./...
 
@@ -62,8 +65,11 @@ test: vendor manifests fmt ## Run tests.
 
 ##@ Build
 
-build: generate fmt vet ## Build manager binary.
+build: generate generate-pluginapi fmt vet ## Build manager binary.
 	go build -o bin/tcs-issuer main.go
+
+build-plugins: generate-pluginapi fmt vet ## Build kmra-plugin binary.
+	go build -o bin/kmra-plugin ./plugins/kmra/main.go
 
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
@@ -91,12 +97,13 @@ install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/crd | kubectl delete -f -
 
-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/manager && $(KUSTOMIZE) edit set image tcs-issuer=${IMG}
+set-image: kustomize
+	cd config/manager && $(KUSTOMIZE) edit set image tcs-issuer=${IMG} && $(KUSTOMIZE) edit set image kmra-plugin=${IMG}
+
+deploy: manifests kustomize set-image ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
-deploy-manifests: manifests kustomize
-	cd config/manager && $(KUSTOMIZE) edit set image tcs-issuer=${IMG}
+deploy-manifests: manifests kustomize set-image
 	mkdir -p deployment && $(KUSTOMIZE) build config/default -o deployment/tcs_issuer.yaml
 	mkdir -p deployment/crds && $(KUSTOMIZE) build -o deployment/crds config/crd
 ## Rename CRDs; remove prefixed type information
@@ -105,6 +112,14 @@ deploy-manifests: manifests kustomize
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
 
+PROTOC = $(shell pwd)/bin/protoc
+# latest protoc releae as of 03.03.2020
+PROTOC_VERSION=3.19.4
+protoc: bin/protoc-${PROTOC_VERSION}-linux-x86_64.zip
+	unzip -p $< bin/protoc > $(PROTOC) && chmod +x $(PROTOC)
+
+bin/protoc-${PROTOC_VERSION}-linux-x86_64.zip:
+	wget https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip -P bin/
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 controller-gen: ## Download controller-gen locally if necessary.

@@ -122,9 +122,11 @@ COPY internal/ internal/
 COPY controllers/ controllers/
 COPY api/ api/
 COPY vendor/ vendor/
+COPY plugins/ plugins/
 COPY LICENSE LICENSE
 
 RUN CGO_ENABLED=1 CGO_LDFLAGS="-L/usr/local/lib" GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -o /manager main.go
+RUN GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -o /kmra-plugin plugins/kmra/main.go
 RUN mkdir -p /usr/local/share/package-licenses \
   && cp /go/LICENSE /usr/local/share/package-licenses/go.LICENSE \
   && cp LICENSE /usr/local/share/package-licenses/tcs-issuer.LICENSE \
@@ -202,6 +204,7 @@ WORKDIR /
 RUN useradd --create-home --home-dir /home/tcs-issuer --shell /bin/bash --uid 5000 --user-group tcs-issuer
 
 COPY --from=builder /manager /tcs-issuer
+COPY --from=builder /kmra-plugin /kmra-plugin
 COPY --from=builder /usr/local/lib/libp11* /usr/local/lib/
 COPY --from=builder /opt/intel/enclave-config/enclave-publickey.pem /usr/local/share/enclave-publickey.pem
 COPY --from=builder /usr/local/share/package-licenses /usr/local/share/package-licenses

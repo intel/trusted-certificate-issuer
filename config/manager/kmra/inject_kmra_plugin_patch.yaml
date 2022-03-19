@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller
+  namespace: system
+spec:
+  template:
+    spec:
+      initContainers:
+      - name: init-kmra
+        image: busybox
+        imagePullPolicy: IfNotPresent
+        # The data in the secret are base64 encoded.
+        # km-wrap expects them in PEM encoding.
+        # So, we first decode them in the init container
+        # before starting the actual controller container.
+        command: ['sh', '-c', 'set -x; for f in /tmp/certs/*; do cat $f | base64 -d > /certs/$(basename $f); done ; chown -R 5000:5000 /certs']
+        volumeMounts:
+        - name: ca-secrets
+          mountPath: /certs/
+        - name: pre-ca-secrets
+          mountPath: /tmp/certs
+      containers:
+      - name: kmra-plugin
+        image: kmra-plugin
+        command:
+        - /kmra-plugin
+        args:
+        - --plugin-name=kmra
+        - --plugin-endpoint=/plugins/kmra.sock
+        - --registry-endpoint=/registry/registry.sock
+        name: kmra-plugin
+        resources:
+          limits:
+            cpu: 100m
+            memory: 30Mi
+          requests:
+            cpu: 100m
+            memory: 20Mi
+        envFrom:
+        - configMapRef:
+            name: tcs-kmra-server-config
+        volumeMounts:
+        - name: ca-secrets
+          mountPath: /certs/
+          readOnly: true
+        - name: plugins-dir
+          mountPath: /plugins/
+        - name: registry-dir
+          mountPath: /registry/
+      volumes:
+      - name: pre-ca-secrets
+        secret:
+          secretName: kmra-secrets
+      - name: ca-secrets
+        emptyDir: {}
