@@ -55,6 +55,7 @@ import (
 
 	"github.com/ThalesIgnite/crypto11"
 	"github.com/go-logr/logr"
+	tcsapi "github.com/intel/trusted-certificate-issuer/api/v1alpha1"
 	"github.com/intel/trusted-certificate-issuer/internal/config"
 	"github.com/intel/trusted-certificate-issuer/internal/k8sutil"
 	"github.com/intel/trusted-certificate-issuer/internal/keyprovider"
@@ -581,7 +582,7 @@ func (ctx *SgxContext) initiateQuoteAttestation(pending []*signer.Signer) (err e
 	}
 	ctx.log.Info("Initiating quote attestation", "name", name, "forSigners", pending)
 	err = k8sutil.QuoteAttestationDeliver(
-		context.TODO(), ctx.k8sClient, name, "", names, ctx.ctkQuote, pubKey, ctx.cfg.HSMTokenLabel)
+		context.TODO(), ctx.k8sClient, name, "", tcsapi.RequestTypeKeyProvisioning, names, ctx.ctkQuote, pubKey, ctx.cfg.HSMTokenLabel)
 	if err != nil {
 		ctx.log.Info("ERROR: Failed to creat QA object")
 		return err

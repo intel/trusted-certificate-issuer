@@ -564,6 +564,7 @@ func newQuoteAttestation(name, namespace, signerName string) *tcsapi.QuoteAttest
 			Namespace: namespace,
 		},
 		Spec: tcsapi.QuoteAttestationSpec{
+			Type:         tcsapi.RequestTypeKeyProvisioning,
 			Quote:        quote,
 			PublicKey:    pubkey,
 			QuoteVersion: tcsapi.ECDSAQuoteVersion3,
