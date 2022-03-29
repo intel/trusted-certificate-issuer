@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -122,7 +123,13 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 		if ns == "" {
 			ns = k8sutil.GetNamespace()
 		}
-		if err := k8sutil.CreateCASecret(context.TODO(), r.Client, s.Certificate(), issuerSpec.SecretName, ns); err != nil {
+		ownerRef := metav1.OwnerReference{
+			APIVersion: tcsapi.GroupVersion.String(),
+			Kind:       issuer.GetObjectKind().GroupVersionKind().Kind,
+			Name:       issuer.GetName(),
+			UID:        issuer.GetUID(),
+		}
+		if err := k8sutil.CreateCASecret(context.TODO(), r.Client, s.Certificate(), issuerSpec.SecretName, ns, ownerRef); err != nil {
 			log.Info("failed to create issuer secret", "error", err)
 			issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", err.Error())
 			return ctrl.Result{RequeueAfter: time.Minute}, err
@@ -146,8 +153,30 @@ func (r *IssuerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			signerName := r.signerNameForIssuer(e.Object)
-			r.Log.Info("Removing CA secrets for deleted issuer", "name", signerName)
+			r.Log.Info("Removing CA stored token for deleted issuer", "issuer", signerName)
 			r.KeyProvider.RemoveSigner(signerName)
+			r.Log.Info("Removing CA secrets for deleted issuer", "issuer", signerName)
+			issuerSpec, _, err := IssuerSpecAndStatus(e.Object)
+			if err != nil {
+				r.Log.Error(err, "Unexpected error while getting issuer spec and status.")
+				return false
+			}
+
+			ns := e.Object.GetNamespace()
+			if r.Kind == "TCSClusterIssuer" {
+				ns = k8sutil.GetNamespace()
+			}
+			secret := &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      issuerSpec.SecretName,
+					Namespace: ns,
+				},
+			}
+			ctx, cancel := context.WithTimeout(context.TODO(), time.Duration(time.Minute))
+			defer cancel()
+			if err := k8sutil.UnsetFinalizer(ctx, r.Client, secret, client.MergeFrom(secret)); err != nil {
+				r.Log.Info("Failed to update finalizer", "issuer", signerName, "error", err)
+			}
 			return false
 		},
 		UpdateFunc: func(ue event.UpdateEvent) bool { return false },

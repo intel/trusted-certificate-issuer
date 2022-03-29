@@ -504,7 +504,7 @@ var _ = Describe("QuoteAttestaion controller", func() {
 
 		s, err := fakeKeyProvider.GetSignerForName(testSigner)
 		Expect(err).ShouldNot(HaveOccurred(), "get signer")
-		s.SetPending(qaKey.Name)
+		s.SetPending(qaKey.Name, qaKey.Namespace)
 		// 6. Pass corrupted Certificate
 		err = k8sClient.Get(context.TODO(), client.ObjectKeyFromObject(secret), secret)
 		Expect(err).ShouldNot(HaveOccurred(), "failed fetch secret")

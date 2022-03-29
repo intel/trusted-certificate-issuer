@@ -27,6 +27,7 @@ import (
 const (
 	namespaceEnvVar = "WATCH_NAMESPACE"
 	namespaceFile   = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+	TCSFinalizer    = "tcs.intel.com/issuer-protection"
 )
 
 // GetNamespace returns the namespace of the operator pod
@@ -50,14 +51,16 @@ func GetNamespace() string {
 	return ns
 }
 
-func CreateCASecret(ctx context.Context, c client.Client, cert *x509.Certificate, name, ns string) error {
+func CreateCASecret(ctx context.Context, c client.Client, cert *x509.Certificate, name, ns string, owner metav1.OwnerReference) error {
 	if ns == "" {
 		ns = GetNamespace()
 	}
 	secret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: ns,
+			Name:            name,
+			Namespace:       ns,
+			OwnerReferences: []metav1.OwnerReference{owner},
+			Finalizers:      []string{TCSFinalizer},
 		},
 		Type: v1.SecretTypeTLS,
 		Data: map[string][]byte{
@@ -83,11 +86,11 @@ func DeleteCASecret(ctx context.Context, c client.Client, name, ns string) error
 		},
 	}
 
-	err := c.Delete(ctx, secret)
-	if err != nil && errors.IsNotFound(err) {
-		return nil
+	if err := UnsetFinalizer(ctx, c, secret, client.MergeFrom(secret)); err != nil {
+		return err
 	}
-	return err
+
+	return client.IgnoreNotFound(c.Delete(ctx, secret))
 }
 
 func QuoteAttestationDeliver(
@@ -113,8 +116,9 @@ func QuoteAttestationDeliver(
 
 	sgxAttestation := &tcsapi.QuoteAttestation{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      instanceName,
-			Namespace: namespace,
+			Name:       instanceName,
+			Namespace:  namespace,
+			Finalizers: []string{TCSFinalizer},
 		},
 		Spec: v1alpha1.QuoteAttestationSpec{
 			Type:         requestType,
@@ -152,21 +156,51 @@ func QuoteAttestationDelete(ctx context.Context, c client.Client, instanceName s
 		},
 	}
 
-	err := c.Delete(ctx, sgxAttestation)
-	if err != nil && errors.IsNotFound(err) {
-		return nil
+	if err := UnsetFinalizer(ctx, c, sgxAttestation, client.MergeFrom(sgxAttestation)); err != nil {
+		return fmt.Errorf("failed unset finalizer for '%s/%s': %v", ns, instanceName, err)
 	}
-	return err
+
+	return client.IgnoreNotFound(c.Delete(ctx, sgxAttestation))
 }
 
-// Converts signer name to valid Kubernetes object name
-//  Ex:- intel.com/tcs -> tcs.intel.com
-//       tcsissuer.tcs.intel.com/sgx-ca1 -> sgx-ca1.tcsissuer.intel.tcs.com
-func SignerNameToResourceName(signerName string) string {
+// Converts signer name to valid Kubernetes object name and nanespace
+//  Ex:- intel.com/tcs -> tcs.intel.com, ""
+///      tcsissuer.tcs.intel.com/sandbox.sgx-ca -> sgx-ca.tcs.intel.com, sandbox
+//       tcsclusterissuer.tcs.intel.com/sgx-ca1 -> sgx-ca1.tcsclusterissuer.intel.tcs.com, ""
+func SignerNameToResourceNameAndNamespace(signerName string) (string, string) {
 	slices := strings.SplitN(signerName, "/", 2)
 	if len(slices) == 2 {
-		return slices[1] + "." + slices[0]
+		nameParts := strings.SplitN(slices[1], ".", 2)
+		if len(nameParts) == 2 {
+			return nameParts[1] + "." + slices[0], nameParts[0]
+		}
+		return slices[1] + "." + slices[0], ""
 	}
 
-	return slices[0]
+	return slices[0], ""
+}
+
+func UnsetFinalizer(ctx context.Context, c client.Client, obj client.Object, patch client.Patch) error {
+	key := client.ObjectKeyFromObject(obj)
+	if err := client.IgnoreNotFound(c.Get(ctx, key, obj)); err != nil {
+		return err
+	}
+
+	list := obj.GetFinalizers()
+	found := false
+	for i, finalizer := range list {
+		if finalizer == TCSFinalizer {
+			found = true
+			list = append(list[:i], list[i+1:]...)
+			break
+		}
+	}
+
+	if found {
+		obj.SetFinalizers(list)
+		if err := client.IgnoreNotFound(c.Patch(ctx, obj, patch)); err != nil {
+			return fmt.Errorf("failed to patch object (%v) with update finalizer : %v", key, err)
+		}
+	}
+	return nil
 }
