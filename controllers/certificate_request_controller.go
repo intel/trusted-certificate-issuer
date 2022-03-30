@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"crypto/x509/pkix"
 	"errors"
 	"fmt"
 	"sync"
@@ -40,6 +41,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 var (
@@ -198,8 +200,36 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 			return ctrl.Result{}, fmt.Errorf("key usage error> %v", err)
 		}
 
+		certRequest, err := tlsutil.DecodeCertRequest(cr.Spec.Request)
+		if err != nil {
+			l.Info("Can't decode x509 CSR:", "error", err)
+			return reconcile.Result{}, nil
+		}
+
+		csrExtensions := []pkix.Extension{}
+		if CSRNeedsQuoteVerification(certRequest) {
+			verified, retry, err := ValidateCSRQuote(ctx, r.Client, cr, certRequest, signerName)
+			if err != nil {
+				l.Error(err, "unabled to validate csr quote")
+				return reconcile.Result{Requeue: retry}, nil
+			}
+			if retry {
+				return reconcile.Result{Requeue: true}, nil
+			}
+			if !verified {
+				cmutil.SetCertificateRequestCondition(cr, cmapi.CertificateRequestConditionDenied, cmmeta.ConditionStatus(v1.ConditionTrue), "Attestation failed", "This request was denied since quote attestation failed")
+				return ctrl.Result{}, nil
+			}
+			verifyExtension, err := GetQuoteVerifiedExtension(ExtensionMessage)
+			if err != nil {
+				l.Error(err, "failed to prepare quote verified extension")
+				return reconcile.Result{}, nil
+			}
+			csrExtensions = append(csrExtensions, *verifyExtension)
+		}
+
 		l.Info("Signing ...")
-		cert, err := ca.Sign(cr.Spec.Request, keyUsage, extKeyUsage, nil)
+		cert, err := ca.Sign(cr.Spec.Request, keyUsage, extKeyUsage, csrExtensions)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to sign CertificateRequest: %v", err)
 		}
