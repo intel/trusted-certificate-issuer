@@ -86,7 +86,9 @@ func DeleteCASecret(ctx context.Context, c client.Client, name, ns string) error
 		},
 	}
 
-	if err := UnsetFinalizer(ctx, c, secret, client.MergeFrom(secret)); err != nil {
+	if err := UnsetFinalizer(ctx, c, secret, func() client.Object {
+		return secret.DeepCopy()
+	}); err != nil {
 		return err
 	}
 
@@ -156,7 +158,9 @@ func QuoteAttestationDelete(ctx context.Context, c client.Client, instanceName s
 		},
 	}
 
-	if err := UnsetFinalizer(ctx, c, sgxAttestation, client.MergeFrom(sgxAttestation)); err != nil {
+	if err := UnsetFinalizer(ctx, c, sgxAttestation, func() client.Object {
+		return sgxAttestation.DeepCopy()
+	}); err != nil {
 		return fmt.Errorf("failed unset finalizer for '%s/%s': %v", ns, instanceName, err)
 	}
 
@@ -180,7 +184,7 @@ func SignerNameToResourceNameAndNamespace(signerName string) (string, string) {
 	return slices[0], ""
 }
 
-func UnsetFinalizer(ctx context.Context, c client.Client, obj client.Object, patch client.Patch) error {
+func UnsetFinalizer(ctx context.Context, c client.Client, obj client.Object, copier func() client.Object) error {
 	key := client.ObjectKeyFromObject(obj)
 	if err := client.IgnoreNotFound(c.Get(ctx, key, obj)); err != nil {
 		return err
@@ -197,6 +201,7 @@ func UnsetFinalizer(ctx context.Context, c client.Client, obj client.Object, pat
 	}
 
 	if found {
+		patch := client.MergeFrom(copier())
 		obj.SetFinalizers(list)
 		if err := client.IgnoreNotFound(c.Patch(ctx, obj, patch)); err != nil {
 			return fmt.Errorf("failed to patch object (%v) with update finalizer : %v", key, err)
