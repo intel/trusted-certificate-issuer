@@ -174,7 +174,9 @@ func (r *IssuerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}
 			ctx, cancel := context.WithTimeout(context.TODO(), time.Duration(time.Minute))
 			defer cancel()
-			if err := k8sutil.UnsetFinalizer(ctx, r.Client, secret, client.MergeFrom(secret)); err != nil {
+			if err := k8sutil.UnsetFinalizer(ctx, r.Client, secret, func() client.Object {
+				return secret.DeepCopy()
+			}); err != nil {
 				r.Log.Info("Failed to update finalizer", "issuer", signerName, "error", err)
 			}
 			return false
