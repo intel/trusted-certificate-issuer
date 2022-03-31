@@ -75,6 +75,9 @@ RUN wget https://download.01.org/intel-sgx/sgx-linux/2.15/distro/ubuntu20.04-ser
   && rm $SGX_SDK_INSTALLER \
   && ls -l /opt/intel/
 
+# Tag/commit-id/branch to use for bulding CTK
+ARG CTK_TAG="master"
+
 # Intel crypto-api-toolkit prerequisites
 #https://github.com/intel/crypto-api-toolkit#software-requirements
 RUN set -x && apt-get update \
@@ -87,6 +90,7 @@ RUN set -x && apt-get update \
   && apt-get clean \
   && git clone https://github.com/intel/crypto-api-toolkit.git \
   && cd /opt/intel/crypto-api-toolkit \
+  && git checkout ${CTK_TAG} -b v${CTK_TAG} \
   # disable building tests
   && sed -i -e 's;test;;g' ./src/Makefile.am \
   # disable enclave signing inside CTK

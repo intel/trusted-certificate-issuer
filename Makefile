@@ -68,8 +68,15 @@ build: generate fmt vet ## Build manager binary.
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
+# Latest CTK commit id as of 31.03.2022 which includes
+# mitigation for key export vulnerability.
+#
+# Keep update this to include the latest CTK code changes.
+CTK_TAG ?= 91ee4968b7b97996f8c466a3ebbdce41168118e3
+
 # additional arguments to pass to 'docker build'
 BUILD_ARGS ?=
+BUILD_ARGS := $(BUILD_ARGS) --build-arg CTK_TAG=${CTK_TAG}
 # Adjust this argument and accodingly the 'enclave-config/sign-enclave.sh'
 # script in CI build system to reflect with the right private key
 # and/or signing with external tool.
