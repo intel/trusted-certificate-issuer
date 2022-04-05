@@ -33,20 +33,13 @@ const (
 
 	// ConditionStatusInit indicates the condition for object status
 	// has just initiated. This is just to allow manual status patching
-	// using kubctl, where no attestation-controller is running.
-	// NOTE: This mist be removed in near feature.
+	// using kubectl, where no attestation-controller is running.
+	// NOTE: This must be removed in near feature.
 	ConditionStatusInit ConditionType = "Init"
 
-	// ConditionQuoteVerified indicates the condition for quote verification
-	// Must be set by the attestation-controller to update the quote verification
-	// state.
-	ConditionQuoteVerified ConditionType = "QuoteVerified"
-	// ConditionCASecretReady indicates the condition for requested secret(s) are
-	// ready. This must be set by the attestation-controller when it fetches
-	// the CA encrypted key and certificate and prepared teh secret.
-	ConditionCASecretReady ConditionType = "CASecretReady"
-	// ConditionReady indicates the condition for the requested signer/CA(s)
-	// provision in to HSM token. This must be set by the attestation requester.
+	// ConditionReady indicates the condition for the request is ready
+	// This should be set by the attestation-controller upon request has
+	// been resolved, i.e. either success or failure.
 	ConditionReady ConditionType = "Ready"
 
 	ReasonTCSReconcile        ConditionReason = "TCSReconcile"

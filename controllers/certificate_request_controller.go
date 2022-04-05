@@ -70,7 +70,6 @@ func NewCertificateRequestReconciler(c client.Client, keyProvider keyprovider.Ke
 //+kubebuilder:rbac:groups=cert-manager.io,resources=certificaterequests,verbs=get;list;watch;update;patch
 //+kubebuilder:rbac:groups=cert-manager.io,resources=certificaterequests/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=cert-manager.io,resources=certificaterequests/finalizers,verbs=update
-//+kubebuilder:rbac:groups=*,resources=secrets,verbs=get;create;update;delete;list;watch
 
 func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	if r == nil {
