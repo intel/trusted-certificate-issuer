@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/intel/trusted-certificate-issuer/internal/k8sutil"
 	"github.com/intel/trusted-certificate-issuer/internal/keyprovider"
 	"github.com/intel/trusted-certificate-issuer/internal/tlsutil"
 	corev1 "k8s.io/api/core/v1"
@@ -154,91 +155,62 @@ func (r *QuoteAttestationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		// object being deleted, just ignore
 		return ctrl.Result{}, nil
 	}
+	// Do not handle quote attestation request, that supposed to be
+	// handled by the signer (CSR, CR) controllers.
+	if attestReq.Spec.Type == v1alpha1.RequestTypeQuoteAttestation {
+		return ctrl.Result{}, nil
+	}
 
 	l.Info("Attestation", "status", attestReq.Status)
 
 	ready := attestReq.Status.GetCondition(v1alpha1.ConditionReady)
-	if ready != nil && ready.Status == v1.ConditionTrue {
-		// Nothing more to do, remove the quote attestaton CR.
-		if err := client.IgnoreNotFound(r.Delete(context.Background(), &attestReq)); err != nil {
-			l.V(2).Info("Failed to remove QuoteAtestation object. One has to cleanup it manually", "error", err)
-		}
-		return ctrl.Result{}, nil
-	}
-
-	setSignerFailure := func(c *v1alpha1.QuoteAttestationCondition) {
-		for _, name := range attestReq.Spec.SignerNames {
-			s, err := r.KeyProvider.GetSignerForName(name)
-			if err != nil {
-				l.V(1).Info("failed to get signer to update the attestation failure", "signer", name, "error", err)
-			} else {
-				s.SetError(fmt.Errorf("%s:%s", c.Status, c.Message))
-			}
-		}
-	}
-
-	secretsReady := attestReq.Status.GetCondition(v1alpha1.ConditionCASecretReady)
-	if secretsReady == nil {
-		verified := attestReq.Status.GetCondition(v1alpha1.ConditionQuoteVerified)
-		if verified == nil {
-			// Still quote is verification not verified, retry later
-			return retry, nil
-		}
-		if verified.Status == v1.ConditionTrue {
-			l.V(3).Info("Quote verification success. Waiting for CA secrets get ready.")
-			return retry, nil
-		}
-
-		if verified.Status == v1.ConditionFalse {
-			l.V(3).Info("Quote verification failure", "reason", verified.Reason, "message", verified.Message)
-			setSignerFailure(verified)
-			return ctrl.Result{}, nil
-		}
-	} else if secretsReady.Status == v1.ConditionFalse && secretsReady.Reason != v1alpha1.ReasonTCSReconcile {
-		// Secret preperation failure at attestation-controller side
-		l.V(3).Info("CA secret failure", "reason", secretsReady.Reason, "message", secretsReady.Message)
-		setSignerFailure(secretsReady)
-		return ctrl.Result{}, nil
-	} else {
-		gotAllSecrets := true
-		// attestation passed. Quote get verified
-		l.Info("Using provisioned secrets")
-		for _, signerName := range attestReq.Spec.SignerNames {
-			secret, ok := attestReq.Status.Secrets[signerName]
-			if !ok {
-				gotAllSecrets = false
-				l.Info("Secret not ready", "for signer", signerName)
-				continue
-			}
-			var provisionError error
-			if secret.SecretType == KMRABased {
-				l.Info("Using KMRA based secret.", "secretName", secret.SecretName)
-				provisionError = r.loadSecret(ctx, signerName, secret.SecretName, req.Namespace)
-			} else {
-				provisionError = fmt.Errorf("unsupported secret type: %v", secret.SecretType)
-			}
-			if provisionError != nil {
-				l.Info("CA provisioning", "error", provisionError)
-				s, _ := r.KeyProvider.GetSignerForName(signerName)
-				s.SetError(provisionError)
-				reqCopy := attestReq.DeepCopy()
-				attestReq.Status.SetCondition(v1alpha1.ConditionCASecretReady, v1.ConditionFalse, v1alpha1.ReasonTCSReconcile, provisionError.Error())
-				if err := r.Status().Patch(context.TODO(), &attestReq, client.MergeFrom(reqCopy)); err != nil {
-					r.Log.V(3).Info("Failed to update attestation status", "error", err)
-				}
-				return retry, nil
-			}
-		}
-		if gotAllSecrets {
-			r.done()
-			l.V(1).Info("Attestation passed. Private key(s) saved to enclave")
-			reqCopy := attestReq.DeepCopy()
-			attestReq.Status.SetCondition(v1alpha1.ConditionReady, v1.ConditionTrue, v1alpha1.ReasonTCSReconcile, "All CA keys and certificates stored in Enclace.")
-			if err := r.Status().Patch(context.TODO(), &attestReq, client.MergeFrom(reqCopy)); err != nil {
-				r.Log.V(3).Info("Failed to update attestation status", "error", err)
-			}
-		}
+	if ready == nil || ready.Status == v1.ConditionUnknown {
+		l.V(3).Info("Still waiting for results")
 		return retry, nil
+	}
+
+	if ready.Status == v1.ConditionFalse {
+		// Secret preperation failure at attestation-controller side
+		l.Info("CA secret failure", "reason", ready.Reason, "message", ready.Message)
+		for _, name := range attestReq.Spec.SignerNames {
+			if s, _ := r.KeyProvider.GetSignerForName(name); s != nil {
+				s.SetError(fmt.Errorf("%s:%s", ready.Status, ready.Message))
+			}
+		}
+		return ctrl.Result{}, nil
+	}
+
+	gotAllSecrets := true
+	// attestation passed. Quote get verified
+	l.Info("Using provisioned secrets")
+	for _, signerName := range attestReq.Spec.SignerNames {
+		secret, ok := attestReq.Status.Secrets[signerName]
+		if !ok {
+			gotAllSecrets = false
+			l.Info("Secret not ready", "for signer", signerName)
+			continue
+		}
+		var provisionError error
+		if secret.SecretType == KMRABased {
+			l.Info("Using KMRA based secret.", "secretName", secret.SecretName)
+			provisionError = r.loadSecret(ctx, signerName, secret.SecretName, req.Namespace)
+		} else {
+			provisionError = fmt.Errorf("unsupported secret type: %v", secret.SecretType)
+		}
+		if provisionError != nil {
+			l.Info("CA provisioning", "error", provisionError)
+			if s, _ := r.KeyProvider.GetSignerForName(signerName); s != nil {
+				s.SetError(provisionError)
+			}
+			return retry, nil
+		}
+	}
+	if gotAllSecrets {
+		r.done()
+		l.V(1).Info("Attestation passed. Private key(s) saved to enclave")
+		func() {
+			k8sutil.QuoteAttestationDelete(context.Background(), r.Client, attestReq.Name, attestReq.Namespace)
+		}()
 	}
 
 	return ctrl.Result{}, nil

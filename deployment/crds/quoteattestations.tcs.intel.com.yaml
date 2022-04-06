@@ -49,11 +49,18 @@ spec:
                 items:
                   type: string
                 type: array
+              type:
+                description: Type represents the type of the request, one of "QuoteAttestation", "KeyProvisioning".
+                enum:
+                - QuoteAttestation
+                - KeyProvisioning
+                type: string
             required:
             - publicKey
             - quote
             - serviceId
             - signerNames
+            - type
             type: object
           status:
             description: QuoteAttestationStatus defines the observed state of QuoteAttestation

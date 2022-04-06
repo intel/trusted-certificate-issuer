@@ -67,7 +67,6 @@ func NewCSRReconciler(c client.Client, scheme *runtime.Scheme, keyProvider keypr
 //+kubebuilder:rbac:groups=certificates.k8s.io,resources=certificatesigningrequests/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=certificates.k8s.io,resources=certificatesigningrequests/finalizers,verbs=update
 //+kubebuilder:rbac:groups=certificates.k8s.io,resources=signers,resourceNames=tcsissuer.tcs.intel.com/*;tcsclusterissuer.tcs.intel.com/*,verbs=sign
-//+kubebuilder:rbac:groups=*,resources=secrets,verbs=get;create;update;delete;list;watch
 
 func (r *CSRReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	if r == nil {
