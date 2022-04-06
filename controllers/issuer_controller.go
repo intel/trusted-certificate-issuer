@@ -58,6 +58,8 @@ func (r *IssuerReconciler) newIssuer() (client.Object, error) {
 
 //+kubebuilder:rbac:groups=tcs.intel.com,resources=tcsissuers;tcsclusterissuers,verbs=get;list;watch;update;patch
 //+kubebuilder:rbac:groups=tcs.intel.com,resources=tcsissuers/status;tcsclusterissuers/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=*,resources=secrets,verbs=get;create;update;delete;patch;list;watch
+//+kubebuilder:rbac:groups=*,resources=secrets/finalizers,verbs=get;update;patch
 
 func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	log := ctrl.LoggerFrom(ctx)
