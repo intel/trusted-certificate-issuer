@@ -100,7 +100,7 @@ func QuoteAttestationDeliver(
 	c client.Client,
 	instanceName, namespace string,
 	requestType tcsapi.QuoteAttestationRequestType,
-	signerNames []string,
+	signerName string,
 	quote []byte,
 	quotePubKey interface{},
 	tokenLabel string) error {
@@ -126,9 +126,11 @@ func QuoteAttestationDeliver(
 			Type:         requestType,
 			Quote:        []byte(encQuote),
 			QuoteVersion: tcsapi.ECDSAQuoteVersion3,
-			SignerNames:  signerNames,
+			SignerName:   signerName,
 			ServiceID:    tokenLabel,
 			PublicKey:    encPubKey,
+			// Using the QuoteAttestation CR name for storing encrypted CA secret
+			SecretName: instanceName,
 		},
 	}
 

@@ -108,7 +108,7 @@ var _ = Describe("QuoteAttestaion controller", func() {
 		// create secret with key and certificate
 		secret := &v1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "ca-secret",
+				Name:      obj.Spec.SecretName,
 				Namespace: obj.Namespace,
 			},
 			Data: map[string][]byte{
@@ -125,18 +125,7 @@ var _ = Describe("QuoteAttestaion controller", func() {
 		err = k8sClient.Get(context.TODO(), qaKey, qa)
 		Expect(err).ShouldNot(HaveOccurred(), "failed to retrieve quote attestation object")
 
-		if qa.Status.Secrets == nil {
-			qa.Status.Secrets = map[string]tcsapi.QuoteAttestationSecret{}
-		}
-		for _, signer := range qa.Spec.SignerNames {
-			qa.Status.Secrets[signer] = tcsapi.QuoteAttestationSecret{
-				SecretType: "KMRA",
-				SecretName: secret.Name,
-			}
-		}
-
 		qa.Status.SetCondition(tcsapi.ConditionReady, v1.ConditionTrue, tcsapi.ReasonControllerReconcile, "")
-
 		err = k8sClient.Status().Update(context.TODO(), qa)
 		Expect(err).ShouldNot(HaveOccurred(), "failed to update attestation status")
 
@@ -161,70 +150,6 @@ var _ = Describe("QuoteAttestaion controller", func() {
 			}
 			return false
 		}, 5*time.Second, time.Second).Should(BeTrue(), "Retrive CR")
-	})
-
-	It("should detect unsupported secret type", func() {
-		// 1. Create QuoteAttestation object
-		obj := newQuoteAttestation("qa-success", "default", testSigner)
-		qaKey := types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace}
-		err = k8sClient.Create(context.TODO(), obj)
-		Expect(err).ShouldNot(HaveOccurred(), "failed to crate quote attestation object")
-		defer k8sClient.Delete(context.TODO(), obj)
-
-		res, err := qc.Reconcile(context.TODO(), reconcile.Request{NamespacedName: qaKey})
-		Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
-		Expect(res.Requeue).Should(BeTrue(), "expected retry reconcile")
-
-		// 2. Prepre required secrets
-		caKey, err := rsa.GenerateKey(rand.Reader, 3072)
-		Expect(err).ShouldNot(HaveOccurred(), "failed to create keypair")
-
-		caCert, err := newCACertificate(caKey)
-		Expect(err).ShouldNot(HaveOccurred(), "failed to create ca certificate")
-
-		// create secret with key and certificate
-		secret := &v1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "ca-secret",
-				Namespace: obj.Namespace,
-			},
-			Data: map[string][]byte{
-				v1.TLSCertKey:       caCert,
-				v1.TLSPrivateKeyKey: []byte(base64.StdEncoding.EncodeToString(tlsutil.EncodeKey(caKey))),
-			},
-		}
-		err = k8sClient.Create(context.TODO(), secret)
-		Expect(err).ShouldNot(HaveOccurred(), "failed to create secret")
-		defer k8sClient.Delete(context.TODO(), secret)
-
-		// 3. Fetch and update the attestation status
-		qa := &tcsapi.QuoteAttestation{}
-		err = k8sClient.Get(context.TODO(), qaKey, qa)
-		Expect(err).ShouldNot(HaveOccurred(), "failed to retrieve quote attestation object")
-
-		if qa.Status.Secrets == nil {
-			qa.Status.Secrets = map[string]tcsapi.QuoteAttestationSecret{}
-		}
-		for _, signer := range qa.Spec.SignerNames {
-			qa.Status.Secrets[signer] = tcsapi.QuoteAttestationSecret{
-				SecretType: "FOOBAR",
-				SecretName: secret.Name,
-			}
-		}
-
-		qa.Status.SetCondition(tcsapi.ConditionReady, v1.ConditionTrue, tcsapi.ReasonControllerReconcile, "")
-		err = k8sClient.Status().Update(context.TODO(), qa)
-		Expect(err).ShouldNot(HaveOccurred(), "failed to update attestation status")
-
-		// 4. Ensure that reconciler catches the secret type
-		res, err = qc.Reconcile(context.TODO(), reconcile.Request{NamespacedName: qaKey})
-		Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
-		Expect(res.Requeue).Should(BeTrue(), "expected requeue")
-
-		s, err := fakeKeyProvider.GetSignerForName(testSigner)
-		Expect(err).ShouldNot(HaveOccurred(), "unexpected error")
-		Expect(s).ShouldNot(BeNil())
-		Expect(s.Error().Error()).Should(HavePrefix("unsupported secret type:"))
 	})
 
 	It("should detect attestation failure", func() {
@@ -292,7 +217,7 @@ var _ = Describe("QuoteAttestaion controller", func() {
 		// create secret with key and certificate
 		secret := &v1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "ca-secret",
+				Name:      obj.Spec.SecretName,
 				Namespace: obj.Namespace,
 			},
 			Data: map[string][]byte{
@@ -303,14 +228,6 @@ var _ = Describe("QuoteAttestaion controller", func() {
 		err = k8sClient.Create(context.TODO(), secret)
 		Expect(err).ShouldNot(HaveOccurred(), "failed to create secret")
 		defer k8sClient.Delete(context.TODO(), secret)
-
-		qa.Status.Secrets = map[string]tcsapi.QuoteAttestationSecret{}
-		for _, signer := range qa.Spec.SignerNames {
-			qa.Status.Secrets[signer] = tcsapi.QuoteAttestationSecret{
-				SecretType: "KMRA",
-				SecretName: secret.Name,
-			}
-		}
 
 		// 3. Update status with appropriate failure
 		qa.Status.SetCondition(tcsapi.ConditionReady, v1.ConditionTrue, tcsapi.ReasonControllerReconcile, "CA secrets ready")
@@ -359,7 +276,7 @@ var _ = Describe("QuoteAttestaion controller", func() {
 		// create secret with key and certificate
 		secret := &v1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "ca-secret",
+				Name:      obj.Spec.SecretName,
 				Namespace: obj.Namespace,
 			},
 			Data: map[string][]byte{
@@ -370,14 +287,6 @@ var _ = Describe("QuoteAttestaion controller", func() {
 		err = k8sClient.Create(context.TODO(), secret)
 		Expect(err).ShouldNot(HaveOccurred(), "failed to create secret")
 		defer k8sClient.Delete(context.TODO(), secret)
-
-		qa.Status.Secrets = map[string]tcsapi.QuoteAttestationSecret{}
-		for _, signer := range qa.Spec.SignerNames {
-			qa.Status.Secrets[signer] = tcsapi.QuoteAttestationSecret{
-				SecretType: "KMRA",
-				SecretName: secret.Name,
-			}
-		}
 
 		// 3. Update status
 		qa.Status.SetCondition(tcsapi.ConditionReady, v1.ConditionTrue, tcsapi.ReasonControllerReconcile, "CA secrets ready")
@@ -426,7 +335,7 @@ var _ = Describe("QuoteAttestaion controller", func() {
 		// create secret with key and certificate
 		secret := &v1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "ca-secret",
+				Name:      obj.Spec.SecretName,
 				Namespace: obj.Namespace,
 			},
 			Data: map[string][]byte{
@@ -440,14 +349,6 @@ var _ = Describe("QuoteAttestaion controller", func() {
 		err = k8sClient.Create(context.TODO(), secret)
 		Expect(err).ShouldNot(HaveOccurred(), "failed to create secret")
 		defer k8sClient.Delete(context.TODO(), secret)
-
-		qa.Status.Secrets = map[string]tcsapi.QuoteAttestationSecret{}
-		for _, signer := range qa.Spec.SignerNames {
-			qa.Status.Secrets[signer] = tcsapi.QuoteAttestationSecret{
-				SecretType: "KMRA",
-				SecretName: secret.Name,
-			}
-		}
 
 		// 3. Update status with ready
 		qa.Status.SetCondition(tcsapi.ConditionReady, v1.ConditionTrue, tcsapi.ReasonControllerReconcile, "CA secrets ready")
@@ -513,7 +414,7 @@ var _ = Describe("QuoteAttestaion controller", func() {
 		// create secret with key and certificate
 		secret := &v1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "ca-secret",
+				Name:      obj.Spec.SecretName,
 				Namespace: obj.Namespace,
 			},
 			Data: map[string][]byte{
@@ -524,14 +425,6 @@ var _ = Describe("QuoteAttestaion controller", func() {
 		err = k8sClient.Create(context.TODO(), secret)
 		Expect(err).ShouldNot(HaveOccurred(), "failed to create secret")
 		defer k8sClient.Delete(context.TODO(), secret)
-
-		qa.Status.Secrets = map[string]tcsapi.QuoteAttestationSecret{}
-		for _, signer := range qa.Spec.SignerNames {
-			qa.Status.Secrets[signer] = tcsapi.QuoteAttestationSecret{
-				SecretType: "KMRA",
-				SecretName: secret.Name,
-			}
-		}
 
 		// Reset the CR status
 		qa.Status.SetCondition(tcsapi.ConditionReady, v1.ConditionTrue, tcsapi.ReasonControllerReconcile, "CA keys ready")
@@ -579,7 +472,8 @@ func newQuoteAttestation(name, namespace, signerName string) *tcsapi.QuoteAttest
 			Quote:        quote,
 			PublicKey:    pubkey,
 			QuoteVersion: tcsapi.ECDSAQuoteVersion3,
-			SignerNames:  []string{signerName},
+			SignerName:   signerName,
+			SecretName:   "ca-secret",
 			ServiceID:    "QA-Test",
 		},
 	}

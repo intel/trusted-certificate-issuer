@@ -48,7 +48,6 @@ import (
 	"math/big"
 	"os/exec"
 	"runtime"
-	"strconv"
 	"sync"
 	"time"
 	"unsafe"
@@ -195,30 +194,9 @@ func (ctx *SgxContext) AddSigner(name string, selfSign bool) (*signer.Signer, er
 			s.SetError(err)
 			return s, err
 		}
-		return s, ctx.initiateQuoteAttestation([]*signer.Signer{s})
+		return s, ctx.initiateQuoteAttestation(s)
 	}
 	return s, err
-}
-
-func (ctx *SgxContext) AddSigners(names []string) error {
-	if ctx == nil || ctx.cryptoCtx == nil {
-		return fmt.Errorf("sgx context not initialized")
-	}
-
-	for _, name := range names {
-		s, err := ctx.addSigner(name)
-		if err == nil && !errors.Is(err, keyprovider.ErrNotFound) {
-			s.SetError(err)
-		}
-	}
-
-	if pending := ctx.signers.UnInitializedSigners(); len(pending) != 0 {
-		if err := ctx.ensureQuote(); err != nil {
-			return err
-		}
-		return ctx.initiateQuoteAttestation(pending)
-	}
-	return nil
 }
 
 func (ctx *SgxContext) findSignerInToken(name string) (crypto11.Signer, *x509.Certificate, error) {
@@ -547,18 +525,15 @@ func (ctx *SgxContext) initializeSigner(s *signer.Signer) (err error) {
 	return nil
 }
 
-func (ctx *SgxContext) initiateQuoteAttestation(pending []*signer.Signer) (err error) {
-	qaPrefix := "sgx.quote.attestation.deliver-"
-	if len(pending) == 0 {
+func (ctx *SgxContext) initiateQuoteAttestation(s *signer.Signer) (err error) {
+	if s == nil {
 		// No CA signer needs provisioning, just ignore the call.
 		return nil
 	}
 
 	defer func() {
 		if err != nil {
-			for _, s := range pending {
-				s.SetError(err)
-			}
+			s.SetError(err)
 		}
 	}()
 
@@ -567,31 +542,20 @@ func (ctx *SgxContext) initiateQuoteAttestation(pending []*signer.Signer) (err e
 		return fmt.Errorf("nil SGX quote or quote keypair")
 	}
 
-	name := qaPrefix + strconv.FormatUint(ctx.qaCounter, 10)
-	ns := ""
-	ctx.qaCounter++
-	if len(pending) == 1 {
-		name, ns = k8sutil.SignerNameToResourceNameAndNamespace(pending[0].Name())
-	}
+	name, ns := k8sutil.SignerNameToResourceNameAndNamespace(s.Name())
 	pubKey, err := ctx.quotePublicKey()
 	if err != nil {
 		return err
 	}
-	names := []string{}
-	for _, ps := range pending {
-		names = append(names, ps.Name())
-	}
-	ctx.log.Info("Initiating quote attestation", "name", name, "forSigners", pending)
+	ctx.log.Info("Initiating quote attestation", "name", name, "forSigner", s.Name())
 	err = k8sutil.QuoteAttestationDeliver(
-		context.TODO(), ctx.k8sClient, name, ns, tcsapi.RequestTypeKeyProvisioning, names, ctx.ctkQuote, pubKey, ctx.cfg.HSMTokenLabel)
+		context.TODO(), ctx.k8sClient, name, ns, tcsapi.RequestTypeKeyProvisioning, s.Name(), ctx.ctkQuote, pubKey, ctx.cfg.HSMTokenLabel)
 	if err != nil {
 		ctx.log.Info("ERROR: Failed to creat QA object")
 		return err
 	}
 
-	for _, s := range pending {
-		s.SetPending(name, ns)
-	}
+	s.SetPending(name, ns)
 
 	return nil
 }
