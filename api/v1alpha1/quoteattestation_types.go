@@ -88,9 +88,18 @@ type QuoteAttestationSpec struct {
 	// +kubebuilder:listType=atomic
 	PublicKey []byte `json:"publicKey"`
 
-	// SignerNames refers to the list of Kubernetes CSR signer names used by
+	// SignerName refers to the Kubernetes CSR signer name used by
 	// this request.
-	SignerNames []string `json:"signerNames"`
+	SignerName string `json:"signerName"`
+
+	// SecretName is name of the Secret object (in the same namespace)
+	// to keep the wrapped on secrets (only needed for KeyProvisioning request type)
+	// which is an opeque type. The secret data must contain two map elements `tls.key`
+	// and `tls.cert` and the values are the base64 encoded encrypted CA key and
+	// base64 encoded x509(PEM encoded) certificate. This must be added only after
+	// a successful quote validation and before updating the status condition.
+	// +optional
+	SecretName string `json:"secretName,omitempty"`
 }
 
 // QuoteAttestationCondition describes a condition of a QuoteAttestation object
@@ -110,34 +119,12 @@ type QuoteAttestationCondition struct {
 	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
 }
 
-// QuoteAttestationSecret defines the secret get from the Key Management Service
-type QuoteAttestationSecret struct {
-	// SecretName represents name of the Secret object (in the same namespace)
-	// which is opeque type. The secret data must contain two map elements `tls.key`
-	// and `tls.cert` and the values are the base64 encoded encrypted CA key and
-	// base64 encoded x509(PEM encoded) certificate. This must bed added only after a successful
-	// quote validation and before updating the status condition.
-	// +optional
-	SecretName string `json:"secretName,omitempty"`
-
-	// SecretType defines the internal structure of secret fetched from the
-	// Key Management Service, as there might be different formats accordingly.
-	// +optional
-	SecretType string `json:"secretType,omitempty"`
-}
-
 // QuoteAttestationStatus defines the observed state of QuoteAttestation
 type QuoteAttestationStatus struct {
 	// conditions applied to the request. Known conditions are "QuoteVerified",
 	// "CASecretsReady" and "Ready".
 	// +optional
 	Conditions []QuoteAttestationCondition `json:"conditions,omitempty"`
-
-	// Secrets fetched after the request has been processed successfully
-	// The map keys are the signer names(Spec.SignerNames) passed by the
-	// request.
-	// +optional
-	Secrets map[string]QuoteAttestationSecret `json:"secrets,omitempty"`
 }
 
 //+kubebuilder:object:root=true

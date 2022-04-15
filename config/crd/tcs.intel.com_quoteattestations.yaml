@@ -49,17 +49,24 @@ spec:
                 description: QuoteVersion used to for generated quote, default is
                   ECDSA quote "3"
                 type: string
+              secretName:
+                description: SecretName is name of the Secret object (in the same
+                  namespace) to keep the wrapped on secrets (only needed for KeyProvisioning
+                  request type) which is an opeque type. The secret data must contain
+                  two map elements `tls.key` and `tls.cert` and the values are the
+                  base64 encoded encrypted CA key and base64 encoded x509(PEM encoded)
+                  certificate. This must be added only after a successful quote validation
+                  and before updating the status condition.
+                type: string
               serviceId:
                 description: // ServiceID holds the unique identifier(name?) that
                   represents service which is requesting for the secret. To be decided
                   wether this should be SPIFFE trust domain!
                 type: string
-              signerNames:
-                description: SignerNames refers to the list of Kubernetes CSR signer
-                  names used by this request.
-                items:
-                  type: string
-                type: array
+              signerName:
+                description: SignerName refers to the Kubernetes CSR signer name used
+                  by this request.
+                type: string
               type:
                 description: Type represents the type of the request, one of "QuoteAttestation",
                   "KeyProvisioning".
@@ -71,7 +78,7 @@ spec:
             - publicKey
             - quote
             - serviceId
-            - signerNames
+            - signerName
             - type
             type: object
           status:
@@ -106,30 +113,6 @@ spec:
                       type: string
                   type: object
                 type: array
-              secrets:
-                additionalProperties:
-                  description: QuoteAttestationSecret defines the secret get from
-                    the Key Management Service
-                  properties:
-                    secretName:
-                      description: SecretName represents name of the Secret object
-                        (in the same namespace) which is opeque type. The secret data
-                        must contain two map elements `tls.key` and `tls.cert` and
-                        the values are the base64 encoded encrypted CA key and base64
-                        encoded x509(PEM encoded) certificate. This must bed added
-                        only after a successful quote validation and before updating
-                        the status condition.
-                      type: string
-                    secretType:
-                      description: SecretType defines the internal structure of secret
-                        fetched from the Key Management Service, as there might be
-                        different formats accordingly.
-                      type: string
-                  type: object
-                description: Secrets fetched after the request has been processed
-                  successfully The map keys are the signer names(Spec.SignerNames)
-                  passed by the request.
-                type: object
             type: object
         type: object
     served: true

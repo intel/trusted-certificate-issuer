@@ -169,49 +169,30 @@ func (r *QuoteAttestationReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return retry, nil
 	}
 
+	signerName := attestReq.Spec.SignerName
 	if ready.Status == v1.ConditionFalse {
 		// Secret preperation failure at attestation-controller side
 		l.Info("CA secret failure", "reason", ready.Reason, "message", ready.Message)
-		for _, name := range attestReq.Spec.SignerNames {
-			if s, _ := r.KeyProvider.GetSignerForName(name); s != nil {
-				s.SetError(fmt.Errorf("%s:%s", ready.Status, ready.Message))
-			}
+		if s, _ := r.KeyProvider.GetSignerForName(signerName); s != nil {
+			s.SetError(fmt.Errorf("%s:%s", ready.Status, ready.Message))
 		}
 		return ctrl.Result{}, nil
 	}
 
-	gotAllSecrets := true
 	// attestation passed. Quote get verified
 	l.Info("Using provisioned secrets")
-	for _, signerName := range attestReq.Spec.SignerNames {
-		secret, ok := attestReq.Status.Secrets[signerName]
-		if !ok {
-			gotAllSecrets = false
-			l.Info("Secret not ready", "for signer", signerName)
-			continue
+	if provisionError := r.loadSecret(ctx, signerName, attestReq.Spec.SecretName, req.Namespace); provisionError != nil {
+		l.Info("CA provisioning", "error", provisionError)
+		if s, _ := r.KeyProvider.GetSignerForName(signerName); s != nil {
+			s.SetError(provisionError)
 		}
-		var provisionError error
-		if secret.SecretType == KMRABased {
-			l.Info("Using KMRA based secret.", "secretName", secret.SecretName)
-			provisionError = r.loadSecret(ctx, signerName, secret.SecretName, req.Namespace)
-		} else {
-			provisionError = fmt.Errorf("unsupported secret type: %v", secret.SecretType)
-		}
-		if provisionError != nil {
-			l.Info("CA provisioning", "error", provisionError)
-			if s, _ := r.KeyProvider.GetSignerForName(signerName); s != nil {
-				s.SetError(provisionError)
-			}
-			return retry, nil
-		}
+		return retry, nil
 	}
-	if gotAllSecrets {
-		r.done()
-		l.V(1).Info("Attestation passed. Private key(s) saved to enclave")
-		func() {
-			k8sutil.QuoteAttestationDelete(context.Background(), r.Client, attestReq.Name, attestReq.Namespace)
-		}()
-	}
+
+	l.V(1).Info("Attestation passed. Private key(s) saved to enclave")
+	func() {
+		k8sutil.QuoteAttestationDelete(context.Background(), r.Client, attestReq.Name, attestReq.Namespace)
+	}()
 
 	return ctrl.Result{}, nil
 }
