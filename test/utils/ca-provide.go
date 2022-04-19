@@ -64,3 +64,7 @@ func (kp *fakeKeyProvider) ProvisionSigner(signerName string, base64Key []byte, 
 	s.SetReady(key, cert)
 	return nil, nil
 }
+
+func (kp *fakeKeyProvider) GetQuoteAndPublicKey() ([]byte, interface{}, error) {
+	return nil, nil, fmt.Errorf("not implemented")
+}

@@ -34,7 +34,6 @@ CK_ULONG quote_offset(CK_BYTE_PTR bytes) {
 import "C"
 
 import (
-	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
@@ -54,9 +53,7 @@ import (
 
 	"github.com/ThalesIgnite/crypto11"
 	"github.com/go-logr/logr"
-	tcsapi "github.com/intel/trusted-certificate-issuer/api/v1alpha1"
 	"github.com/intel/trusted-certificate-issuer/internal/config"
-	"github.com/intel/trusted-certificate-issuer/internal/k8sutil"
 	"github.com/intel/trusted-certificate-issuer/internal/keyprovider"
 	selfca "github.com/intel/trusted-certificate-issuer/internal/self-ca"
 	"github.com/intel/trusted-certificate-issuer/internal/signer"
@@ -142,6 +139,20 @@ func (ctx *SgxContext) TokenLabel() (string, error) {
 	return ctx.cfg.HSMTokenLabel, nil
 }
 
+func (ctx *SgxContext) GetQuoteAndPublicKey() ([]byte, interface{}, error) {
+	if ctx == nil {
+		return nil, nil, fmt.Errorf("invalid SGX context")
+	}
+	if err := ctx.ensureQuote(); err != nil {
+		return nil, nil, err
+	}
+	key, err := ctx.quotePublicKey()
+	if err != nil {
+		return nil, nil, err
+	}
+	return ctx.ctkQuote, key, nil
+}
+
 func (ctx *SgxContext) GetPendingSigners() []string {
 	if ctx == nil {
 		return []string{}
@@ -190,11 +201,6 @@ func (ctx *SgxContext) AddSigner(name string, selfSign bool) (*signer.Signer, er
 		if selfSign {
 			return s, ctx.initializeSigner(s)
 		}
-		if err := ctx.ensureQuote(); err != nil {
-			s.SetError(err)
-			return s, err
-		}
-		return s, ctx.initiateQuoteAttestation(s)
 	}
 	return s, err
 }
@@ -249,12 +255,6 @@ func (ctx *SgxContext) RemoveSigner(name string) error {
 		if err := ctx.removeSignerInToken(s); err != nil {
 			return err
 		}
-		secretName, ns := k8sutil.SignerNameToResourceNameAndNamespace(s.Name())
-		k8sutil.DeleteCASecret(context.Background(), ctx.k8sClient, secretName, ns)
-	} else if name, ns := s.AttestationCRNameAndNamespace(); name != "" {
-		if err := k8sutil.QuoteAttestationDelete(context.TODO(), ctx.k8sClient, name, ns); err != nil {
-			return fmt.Errorf("failed to remove quote attestation object: %v", err)
-		}
 	}
 
 	ctx.signers.Delete(s)
@@ -279,15 +279,15 @@ func (ctx *SgxContext) GetSignerForName(name string) (*signer.Signer, error) {
 	return s, nil
 }
 
-func (ctx *SgxContext) ProvisionSigner(signerName string, encryptedKey []byte, cert *x509.Certificate) ([]byte, error) {
+func (ctx *SgxContext) ProvisionSigner(signerName string, encryptedKey []byte, cert *x509.Certificate) (*signer.Signer, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("invalid SGX context")
 	}
 
 	s := ctx.signers.Get(signerName)
-	if s == nil || !s.Pending() {
-		ctx.log.Info("ignoring unexpected provision key request for", "signer", signerName)
-		return nil, nil
+	if s == nil {
+		s = signer.NewSigner(signerName)
+		ctx.signers.Add(s)
 	}
 
 	keySizeBytes := RSAKeySize / 8
@@ -307,7 +307,7 @@ func (ctx *SgxContext) ProvisionSigner(signerName string, encryptedKey []byte, c
 	wrappedSwk := encryptedKey[:keySizeBytes]
 	wrappedPrKey := encryptedKey[keySizeBytes:]
 
-	key, err := ctx.provisionKey(signerName, wrappedSwk, wrappedPrKey)
+	_, err := ctx.provisionKey(signerName, wrappedSwk, wrappedPrKey)
 	if err != nil {
 		ctx.cryptoCtx.DeleteCertificate(nil, []byte(signerName), nil)
 		return nil, fmt.Errorf("failed to provision key for signer '%s': %v", signerName, err)
@@ -332,7 +332,7 @@ func (ctx *SgxContext) ProvisionSigner(signerName string, encryptedKey []byte, c
 	s.SetReady(cryptoSigner, cert)
 	ctx.log.Info("Signer is ready", "signerName", s.Name())
 
-	return key, err
+	return s, err
 }
 
 func (ctx *SgxContext) provisionCertificate(signerName string, cert *x509.Certificate) error {
@@ -429,8 +429,8 @@ func (ctx *SgxContext) destroyP11Context() {
 	defer ctx.ctxLock.Unlock()
 	if ctx.p11Ctx != nil {
 		ctx.p11Ctx.Logout(ctx.p11Session)
-		ctx.p11Ctx.DestroyObject(ctx.p11Session, ctx.quotePrvKey)
-		ctx.p11Ctx.DestroyObject(ctx.p11Session, ctx.quotePubKey)
+		//ctx.p11Ctx.DestroyObject(ctx.p11Session, ctx.quotePrvKey)
+		//ctx.p11Ctx.DestroyObject(ctx.p11Session, ctx.quotePubKey)
 		ctx.p11Ctx.CloseSession(ctx.p11Session)
 		ctx.p11Ctx.Destroy()
 		ctx.p11Ctx = nil
@@ -522,41 +522,6 @@ func (ctx *SgxContext) initializeSigner(s *signer.Signer) (err error) {
 
 	s.SetReady(dc, caCert)
 	ctx.log.Info("Crypto Keypair generated", "for", s.Name())
-	return nil
-}
-
-func (ctx *SgxContext) initiateQuoteAttestation(s *signer.Signer) (err error) {
-	if s == nil {
-		// No CA signer needs provisioning, just ignore the call.
-		return nil
-	}
-
-	defer func() {
-		if err != nil {
-			s.SetError(err)
-		}
-	}()
-
-	if ctx.quotePubKey == 0 || ctx.quotePrvKey == 0 || ctx.ctkQuote == nil {
-		// FIXME: create quote and keypair
-		return fmt.Errorf("nil SGX quote or quote keypair")
-	}
-
-	name, ns := k8sutil.SignerNameToResourceNameAndNamespace(s.Name())
-	pubKey, err := ctx.quotePublicKey()
-	if err != nil {
-		return err
-	}
-	ctx.log.Info("Initiating quote attestation", "name", name, "forSigner", s.Name())
-	err = k8sutil.QuoteAttestationDeliver(
-		context.TODO(), ctx.k8sClient, name, ns, tcsapi.RequestTypeKeyProvisioning, s.Name(), ctx.ctkQuote, pubKey, ctx.cfg.HSMTokenLabel)
-	if err != nil {
-		ctx.log.Info("ERROR: Failed to creat QA object")
-		return err
-	}
-
-	s.SetPending(name, ns)
-
 	return nil
 }
 

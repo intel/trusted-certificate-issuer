@@ -18,12 +18,15 @@ package controllers
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -35,6 +38,8 @@ import (
 	tcsapi "github.com/intel/trusted-certificate-issuer/api/v1alpha1"
 	"github.com/intel/trusted-certificate-issuer/internal/k8sutil"
 	"github.com/intel/trusted-certificate-issuer/internal/keyprovider"
+	"github.com/intel/trusted-certificate-issuer/internal/signer"
+	"github.com/intel/trusted-certificate-issuer/internal/tlsutil"
 )
 
 // IssuerReconciler reconciles a Issuer object
@@ -58,6 +63,9 @@ func (r *IssuerReconciler) newIssuer() (client.Object, error) {
 
 //+kubebuilder:rbac:groups=tcs.intel.com,resources=tcsissuers;tcsclusterissuers,verbs=get;list;watch;update;patch
 //+kubebuilder:rbac:groups=tcs.intel.com,resources=tcsissuers/status;tcsclusterissuers/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=tcs.intel.com,resources=quoteattestations,verbs=get;list;watch;create;delete;patch
+//+kubebuilder:rbac:groups=tcs.intel.com,resources=quoteattestations/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=tcs.intel.com,resources=quoteattestations/finalizers,verbs=update
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;create;update;delete;patch;list;watch
 //+kubebuilder:rbac:groups="",resources=secrets/finalizers,verbs=get;update;patch
 
@@ -91,31 +99,91 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 		}
 	}()
 
-	if ready := issuerStatus.GetCondition(tcsapi.IssuerConditionReady); ready == nil {
+	ready := issuerStatus.GetCondition(tcsapi.IssuerConditionReady)
+	if ready == nil {
 		issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionUnknown, "Reconcile", "First seen")
-		return ctrl.Result{Requeue: true, RequeueAfter: 10 * time.Second}, nil
+		return ctrl.Result{Requeue: true}, nil
+	}
+	if ready.Status == v1.ConditionTrue {
+		log.Info("Ignoring as the issuer is ready")
+		return ctrl.Result{}, nil
 	}
 
 	signerName := r.signerNameForIssuer(issuer)
 	s, err := r.KeyProvider.GetSignerForName(signerName)
 	if errors.Is(err, keyprovider.ErrNotFound) {
-		log.Info("Adding new signer for", "issuer", req.Name)
-		if s, err = r.KeyProvider.AddSigner(signerName, issuerSpec.SelfSignCertificate); err != nil {
-			log.Info("Initializing the Issuer signer failed", "issuer", req.Name, "error", err)
-			issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", err.Error())
-			return ctrl.Result{Requeue: true, RequeueAfter: 10 * time.Second}, nil
+		if issuerSpec.SelfSignCertificate {
+			log.Info("Adding new signer for", "issuer", req.Name)
+			if s, err = r.KeyProvider.AddSigner(signerName, true); err != nil {
+				log.Info("Initializing the Issuer signer failed", "issuer", req.Name, "error", err)
+				issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", err.Error())
+				return ctrl.Result{Requeue: false}, nil
+			}
+		} else {
+			qa := &tcsapi.QuoteAttestation{}
+			qaReq := req.NamespacedName
+			if qaReq.Namespace == "" {
+				qaReq.Namespace = k8sutil.GetNamespace()
+			}
+			if err := r.Get(ctx, qaReq, qa); err != nil {
+				if apierrors.IsNotFound(err) {
+					// means no quoteattestation object, create new one
+					quote, publickey, err := r.KeyProvider.GetQuoteAndPublicKey()
+					if err != nil {
+						log.Info("Error preparing SGX quote", "error", err)
+						issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", fmt.Sprintf("failed to get sgx quote: %v", err.Error()))
+						return ctrl.Result{Requeue: true}, nil
+					}
+					ownerRef := &metav1.OwnerReference{
+						APIVersion: tcsapi.GroupVersion.String(),
+						Kind:       r.Kind,
+						Name:       issuer.GetName(),
+						UID:        issuer.GetUID(),
+					}
+					log.Info("Initiating quote attestation", "signer", signerName)
+					if err := k8sutil.QuoteAttestationDeliver(ctx, r.Client, qaReq, tcsapi.RequestTypeKeyProvisioning, signerName, quote, publickey, "", ownerRef); err != nil {
+						log.Error(err, "Error while creating quote attestation")
+						issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", fmt.Sprintf("failed to initiate quote attestation: %v", err.Error()))
+						return ctrl.Result{Requeue: true}, nil
+					}
+
+					issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", "Initiated key provisioning using QuoteAttestation")
+					return ctrl.Result{}, nil
+				}
+				log.Error(err, "Error while checking if quote attestation exists")
+				issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", fmt.Sprintf("failed to get quote attestation status: %v", err.Error()))
+				return ctrl.Result{Requeue: true}, nil
+			}
+			status := qa.Status.GetCondition(tcsapi.ConditionReady)
+			if status == nil || status.Status == v1.ConditionUnknown {
+				// Still not ready, retry later
+				issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", "Waiting for key provisioning")
+				return ctrl.Result{Requeue: true}, nil
+			}
+
+			// Remove attestation object as we got the results
+			defer k8sutil.QuoteAttestationDelete(context.Background(), r.Client, qaReq)
+
+			if status.Status == v1.ConditionFalse {
+				// Secret delivery failure
+				issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", fmt.Sprintf("%s: %s", status.Status, status.Message))
+				return ctrl.Result{}, nil
+			}
+
+			s, err = r.provisionSigner(ctx, signerName, qa.Spec.SecretName, qa.Namespace)
 		}
 	}
+
 	if err != nil {
-		log.Info("Initializing the Issuer signer failed", "error", err)
+		log.Info("Failed initializing the Issuer", "error", err)
 		issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", err.Error())
-		return ctrl.Result{}, err
+		return ctrl.Result{}, nil
 	}
 
 	if !s.Ready() {
 		log.Info("Still waiting for signer to be initialized", "issuer", req.Name)
 		issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", "Signer is not ready")
-		return ctrl.Result{Requeue: true, RequeueAfter: 10 * time.Second}, nil
+		return ctrl.Result{Requeue: true}, nil
 	}
 
 	log.Info("Signer is ready for", "issuer", req.Name)
@@ -127,7 +195,7 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 		}
 		ownerRef := metav1.OwnerReference{
 			APIVersion: tcsapi.GroupVersion.String(),
-			Kind:       issuer.GetObjectKind().GroupVersionKind().Kind,
+			Kind:       r.Kind,
 			Name:       issuer.GetName(),
 			UID:        issuer.GetUID(),
 		}
@@ -179,8 +247,21 @@ func (r *IssuerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			if err := k8sutil.UnsetFinalizer(ctx, r.Client, secret, func() client.Object {
 				return secret.DeepCopy()
 			}); err != nil {
-				r.Log.Info("Failed to update finalizer", "issuer", signerName, "error", err)
+				r.Log.Info("Failed to update finalizer on Secret", "issuer", signerName, "error", err)
 			}
+
+			qa := &tcsapi.QuoteAttestation{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      e.Object.GetName(),
+					Namespace: ns,
+				},
+			}
+			if err := k8sutil.UnsetFinalizer(ctx, r.Client, qa, func() client.Object {
+				return qa.DeepCopy()
+			}); err != nil {
+				r.Log.Info("Failed to update finalizer on QuoteAttestation", "issuer", signerName, "error", err)
+			}
+
 			return false
 		},
 		UpdateFunc: func(ue event.UpdateEvent) bool { return false },
@@ -189,4 +270,40 @@ func (r *IssuerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 func (r *IssuerReconciler) signerNameForIssuer(issuer client.Object) string {
 	return SignerNameForIssuer(tcsapi.GroupVersion.WithKind(r.Kind), issuer.GetName(), issuer.GetNamespace())
+}
+
+func (r *IssuerReconciler) provisionSigner(ctx context.Context, signerName, secretName, namespace string) (*signer.Signer, error) {
+	secret := &corev1.Secret{}
+	key := client.ObjectKey{Name: secretName, Namespace: namespace}
+
+	if err := r.Get(ctx, key, secret); err != nil {
+		r.Log.Error(err, "Failed to get secret", "secret", secret, "signer", signerName)
+		return nil, err
+	}
+
+	wrappedKey, ok := secret.Data[v1.TLSPrivateKeyKey]
+	if !ok || len(wrappedKey) == 0 {
+		return nil, fmt.Errorf("invalid secret: missing CA private key")
+	}
+	encryptedKey, err := base64.StdEncoding.DecodeString(string(wrappedKey))
+	if err != nil {
+		return nil, fmt.Errorf("corrupted key data: %v", err)
+	}
+
+	encCert, ok := secret.Data[v1.TLSCertKey]
+	if !ok || len(encCert) == 0 {
+		return nil, fmt.Errorf("invalid secret: missing CA certificate")
+	}
+
+	pemCert, err := base64.StdEncoding.DecodeString(string(encCert))
+	if err != nil {
+		return nil, fmt.Errorf("corrupted certificate: %v", err)
+	}
+
+	cert, err := tlsutil.DecodeCert(pemCert)
+	if err != nil {
+		return nil, fmt.Errorf("corrupted certificate: %v", err)
+	}
+
+	return r.KeyProvider.ProvisionSigner(signerName, encryptedKey, cert)
 }
