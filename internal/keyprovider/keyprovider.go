@@ -47,5 +47,5 @@ type KeyProvider interface {
 	ProvisionSigner(signerName string, encryptedKey []byte, cert *x509.Certificate) (*signer.Signer, error)
 
 	// GetQuoteAndPublicKey returns SGX quote and the publickey used for generating the quote
-	GetQuoteAndPublicKey() ([]byte, interface{}, error)
+	GetQuoteAndPublicKey(signerName string) ([]byte, interface{}, error)
 }

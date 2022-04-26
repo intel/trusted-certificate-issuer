@@ -107,7 +107,7 @@ func (kp *fakeKeyProvider) ProvisionSigner(signerName string, base64Key []byte, 
 	return s, nil
 }
 
-func (kp *fakeKeyProvider) GetQuoteAndPublicKey() ([]byte, interface{}, error) {
+func (kp *fakeKeyProvider) GetQuoteAndPublicKey(string) ([]byte, interface{}, error) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, nil, err

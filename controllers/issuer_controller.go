@@ -128,7 +128,7 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 			if err := r.Get(ctx, qaReq, qa); err != nil {
 				if apierrors.IsNotFound(err) {
 					// means no quoteattestation object, create new one
-					quote, publickey, err := r.KeyProvider.GetQuoteAndPublicKey()
+					quote, publickey, err := r.KeyProvider.GetQuoteAndPublicKey(signerName)
 					if err != nil {
 						log.Info("Error preparing SGX quote", "error", err)
 						issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", fmt.Sprintf("failed to get sgx quote: %v", err.Error()))
