@@ -112,7 +112,7 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 	signerName := r.signerNameForIssuer(issuer)
 	s, err := r.KeyProvider.GetSignerForName(signerName)
 	if errors.Is(err, keyprovider.ErrNotFound) {
-		if issuerSpec.SelfSignCertificate {
+		if issuerSpec.SelfSignCertificate != nil && *issuerSpec.SelfSignCertificate {
 			log.Info("Adding new signer for", "issuer", req.Name)
 			if s, err = r.KeyProvider.AddSigner(signerName, true); err != nil {
 				log.Info("Initializing the Issuer signer failed", "issuer", req.Name, "error", err)

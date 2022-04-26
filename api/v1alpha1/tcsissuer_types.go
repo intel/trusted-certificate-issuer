@@ -28,10 +28,10 @@ type TCSIssuerSpec struct {
 	SecretName string `json:"secretName,omitempty"`
 	// SelfSignCertificate defines weather to generate a self-signed certificate
 	// for this CA issuer. When it set false, the CA is expected to get provisioned
-	// by an external key server using QuoteAttestaion CRD.
+	// by an external key server using QuoteAttestation CRD.
 	// Default to True.
 	// +kubebuilder:default=true
-	SelfSignCertificate bool `json:"selfSign,omitempty"`
+	SelfSignCertificate *bool `json:"selfSign,omitempty"`
 }
 
 // TCSIssuerStatus defines the observed state of Issuer
