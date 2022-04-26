@@ -17,12 +17,14 @@ limitations under the License.
 package controllers_test
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -43,6 +45,10 @@ var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
 var scheme *runtime.Scheme
+
+const (
+	testIssuerNS = "test-issuer"
+)
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -81,9 +87,21 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
+	nsObj := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
+		Name: testIssuerNS,
+	}}
+	err = k8sClient.Create(context.TODO(), nsObj)
+	Expect(err).ShouldNot(HaveOccurred(), "create issuer namespace")
 }, 60)
 
 var _ = AfterSuite(func() {
+	if k8sClient != nil {
+		nsObj := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
+			Name: testIssuerNS,
+		}}
+		k8sClient.Delete(context.TODO(), nsObj)
+	}
+
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
