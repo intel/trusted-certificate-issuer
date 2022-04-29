@@ -30,6 +30,26 @@ CK_ULONG quote_offset(CK_BYTE_PTR bytes) {
 
 	return offset;
 }
+
+CK_ULONG rsa_key_params_size() {
+    return (CK_ULONG)sizeof(CK_RSA_PUBLIC_KEY_PARAMS);
+}
+
+CK_ULONG ulModulusLen_offset(CK_BYTE_PTR bytes) {
+	CK_RSA_PUBLIC_KEY_PARAMS* params = (CK_RSA_PUBLIC_KEY_PARAMS*)bytes;
+	if (params == NULL) {
+		return 0;
+	}
+	return params->ulModulusLen;
+}
+
+CK_ULONG ulExponentLen_offset(CK_BYTE_PTR bytes) {
+	CK_RSA_PUBLIC_KEY_PARAMS* params = (CK_RSA_PUBLIC_KEY_PARAMS*)bytes;
+	if (params == NULL) {
+		return 0;
+	}
+	return params->ulExponentLen;
+}
 */
 import "C"
 
@@ -550,15 +570,8 @@ func (ctx *SgxContext) ensureQuote(signerName string) ([]byte, interface{}, erro
 		return nil, nil, err
 	}
 
-	pubKey, err := ctx.quotePublicKey(pubHandle)
-	if err != nil {
-		ctx.p11Ctx.DestroyObject(ctx.p11Session, pubHandle)
-		ctx.p11Ctx.DestroyObject(ctx.p11Session, privHandle)
-		return nil, nil, err
-	}
-
 	ctx.log.Info("Generating Quote...")
-	quote, err := ctx.generateQuote(pubHandle)
+	quote, pubKey, err := ctx.generateQuote(pubHandle)
 	if err != nil {
 		ctx.p11Ctx.DestroyObject(ctx.p11Session, pubHandle)
 		ctx.p11Ctx.DestroyObject(ctx.p11Session, privHandle)
@@ -574,39 +587,7 @@ func (ctx *SgxContext) ensureQuote(signerName string) ([]byte, interface{}, erro
 	return info.ctkQuote, info.publicKey, nil
 }
 
-// quotePublicKey returns the base64 encoded key
-// used for quote generation
-func (ctx *SgxContext) quotePublicKey(keyHandle pkcs11.ObjectHandle) (*rsa.PublicKey, error) {
-	if ctx == nil {
-		return nil, fmt.Errorf("invalid SGX context")
-	}
-
-	template := []*pkcs11.Attribute{
-		pkcs11.NewAttribute(pkcs11.CKA_MODULUS, nil),
-		pkcs11.NewAttribute(pkcs11.CKA_PUBLIC_EXPONENT, nil),
-	}
-	attrs, err := ctx.p11Ctx.GetAttributeValue(ctx.p11Session, keyHandle, template)
-	if err != nil {
-		return nil, err
-	}
-	var modulus = new(big.Int)
-	modulus.SetBytes(attrs[0].Value)
-	var bigExponent = new(big.Int)
-	bigExponent.SetBytes(attrs[1].Value)
-	if bigExponent.BitLen() > 32 || bigExponent.Sign() < 1 {
-		return nil, fmt.Errorf("malformed quote public key")
-	}
-	if bigExponent.Uint64() > uint64(math.MaxInt) {
-		return nil, fmt.Errorf("malformed quote public key: possible data loss in exponent value")
-	}
-	exponent := int(bigExponent.Uint64())
-	return &rsa.PublicKey{
-		N: modulus,
-		E: exponent,
-	}, nil
-}
-
-func (ctx *SgxContext) generateQuote(pubKey pkcs11.ObjectHandle) ([]byte, error) {
+func (ctx *SgxContext) generateQuote(pubKey pkcs11.ObjectHandle) ([]byte, *rsa.PublicKey, error) {
 	//reader, err := ctx.cryptoCtx.NewRandomReader()
 	//if err != nil {
 	//	return nil, fmt.Errorf("failed to initialize random reader: %v", err)
@@ -629,14 +610,50 @@ func (ctx *SgxContext) generateQuote(pubKey pkcs11.ObjectHandle) ([]byte, error)
 
 	quotePubKey, err := ctx.p11Ctx.WrapKey(ctx.p11Session, []*pkcs11.Mechanism{m}, pkcs11.ObjectHandle(0), pubKey)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	offset := uint64(C.quote_offset(*(*C.CK_BYTE_PTR)(unsafe.Pointer(&quotePubKey))))
 	if offset <= 0 || offset >= uint64(len(quotePubKey)) {
-		return nil, fmt.Errorf("quote generation failure: invalid quote")
+		return nil, nil, fmt.Errorf("quote generation failure: invalid quote")
 	}
-	return quotePubKey[offset:], nil
+
+	publicKey, err := parseQuotePublickey(quotePubKey[:offset])
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse quote public key: %v", err)
+	}
+
+	return quotePubKey[offset:], publicKey, nil
+}
+
+// parseQuotePublickey reconstruct the rsa public key
+// from received bytes, received bytes structure like this:
+// pubkey_params   |    ulExponentLen   |    ulModulusLen
+// need to slice ulExponentLen and ulModulusLen to
+// reconstruct pubkey according to the size of each item
+func parseQuotePublickey(pubkey []byte) (*rsa.PublicKey, error) {
+	paramsSize := uint64(C.rsa_key_params_size())
+	exponentLen := uint64(C.ulExponentLen_offset(*(*C.CK_BYTE_PTR)(unsafe.Pointer(&pubkey))))
+	modulusOffset := paramsSize + exponentLen
+	if modulusOffset >= uint64(len(pubkey)) {
+		return nil, fmt.Errorf("malformed quote public key: out of bounds")
+	}
+
+	var bigExponent = new(big.Int)
+	bigExponent.SetBytes(pubkey[paramsSize:modulusOffset])
+	if bigExponent.BitLen() > 32 || bigExponent.Sign() < 1 {
+		return nil, fmt.Errorf("malformed quote public key")
+	}
+	if bigExponent.Uint64() > uint64(math.MaxInt) {
+		return nil, fmt.Errorf("malformed quote public key: possible data loss in exponent value")
+	}
+	exponent := int(bigExponent.Uint64())
+	var modulus = new(big.Int)
+	modulus.SetBytes(pubkey[modulusOffset:])
+	return &rsa.PublicKey{
+		N: modulus,
+		E: exponent,
+	}, nil
 }
 
 func initP11Session(p11Ctx *pkcs11.Ctx, tokenLabel, userPin, soPin string) (pkcs11.SessionHandle, error) {
