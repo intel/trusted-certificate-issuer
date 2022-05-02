@@ -1,23 +1,46 @@
 package testutils
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
+	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/intel/trusted-certificate-issuer/internal/keyprovider"
 	"github.com/intel/trusted-certificate-issuer/internal/signer"
 	"github.com/intel/trusted-certificate-issuer/internal/tlsutil"
 )
 
+const certificateDuration = time.Hour * 24
+
+type SignerError struct {
+	Name       string
+	ErrMessage string
+}
+type Config struct {
+	KnownSigners         []string
+	AddSignerError       SignerError
+	ProvisionSignerError SignerError
+}
+
 type fakeKeyProvider struct {
 	signers map[string]*signer.Signer
+	cfg     Config
 }
 
 var _ keyprovider.KeyProvider = &fakeKeyProvider{}
 
-func NewKeyProvider(signers map[string]*signer.Signer) keyprovider.KeyProvider {
+func NewKeyProvider(cfg Config) keyprovider.KeyProvider {
+	signers := map[string]*signer.Signer{}
+	for _, name := range cfg.KnownSigners {
+		signers[name] = signer.NewSigner(name)
+	}
 	return &fakeKeyProvider{
 		signers: signers,
+		cfg:     cfg,
 	}
 }
 
@@ -30,37 +53,64 @@ func (kp *fakeKeyProvider) SignerNames() []string {
 	return names
 }
 
-func (kå *fakeKeyProvider) AddSigner(name string, selfSign bool) (*signer.Signer, error) {
-	return nil, fmt.Errorf("not implemented")
+func (kp *fakeKeyProvider) AddSigner(name string, selfSign bool) (*signer.Signer, error) {
+	if kp.cfg.AddSignerError.Name != "" && strings.HasSuffix(name, kp.cfg.AddSignerError.Name) {
+		return nil, errors.New(kp.cfg.AddSignerError.ErrMessage)
+	}
+	if s, ok := kp.signers[name]; ok {
+		return s, nil
+	}
+
+	s := signer.NewSigner(name)
+	key, err := rsa.GenerateKey(rand.Reader, 3072)
+	if err != nil {
+		return nil, err
+	}
+	cert, err := NewCACertificate(key, time.Now(), certificateDuration, true)
+	if err != nil {
+		return nil, err
+	}
+	s.SetReady(key, cert)
+	kp.signers[name] = s
+	return s, nil
 }
 
-func (kå *fakeKeyProvider) RemoveSigner(name string) error {
-	return fmt.Errorf("not implemented")
+func (kp *fakeKeyProvider) RemoveSigner(name string) error {
+	if _, ok := kp.signers[name]; ok {
+		kp.signers[name] = nil
+		delete(kp.signers, name)
+	}
+	return nil
 }
 
 func (kp *fakeKeyProvider) GetSignerForName(signerName string) (*signer.Signer, error) {
 	s, ok := kp.signers[signerName]
 	if !ok {
-		return nil, fmt.Errorf("unknown signer")
+		return nil, keyprovider.ErrNotFound
 	}
-	/*s := signer.NewSigner(signerName)
-	if ca != nil {
-		s.SetReady(ca.PrivateKey(), ca.Certificate())
-	}*/
 
 	return s, nil
 }
 
-func (kp *fakeKeyProvider) ProvisionSigner(signerName string, base64Key []byte, cert *x509.Certificate) ([]byte, error) {
-	s, ok := kp.signers[signerName]
-	if !ok || s == nil {
-		return nil, fmt.Errorf("unknown signer '%s'", signerName)
+func (kp *fakeKeyProvider) ProvisionSigner(signerName string, base64Key []byte, cert *x509.Certificate) (*signer.Signer, error) {
+	if kp.cfg.ProvisionSignerError.Name != "" && strings.HasSuffix(signerName, kp.cfg.ProvisionSignerError.Name) {
+		return nil, errors.New(kp.cfg.ProvisionSignerError.ErrMessage)
 	}
+	s := signer.NewSigner(signerName)
 	key, err := tlsutil.DecodeKey(base64Key)
 	if err != nil {
 		return nil, fmt.Errorf("corrupted key data: %v", err)
 	}
 
 	s.SetReady(key, cert)
-	return nil, nil
+	kp.signers[signerName] = s
+	return s, nil
+}
+
+func (kp *fakeKeyProvider) GetQuoteAndPublicKey() ([]byte, interface{}, error) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, err
+	}
+	return []byte("DummyQuote"), &key.PublicKey, nil
 }

@@ -20,6 +20,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -98,12 +99,13 @@ func DeleteCASecret(ctx context.Context, c client.Client, name, ns string) error
 func QuoteAttestationDeliver(
 	ctx context.Context,
 	c client.Client,
-	instanceName, namespace string,
+	req types.NamespacedName,
 	requestType tcsapi.QuoteAttestationRequestType,
 	signerName string,
 	quote []byte,
 	quotePubKey interface{},
-	tokenLabel string) error {
+	tokenLabel string,
+	ownerRef *metav1.OwnerReference) error {
 
 	encPubKey, err := tlsutil.EncodePublicKey(quotePubKey)
 	if err != nil {
@@ -112,14 +114,17 @@ func QuoteAttestationDeliver(
 
 	encQuote := base64.StdEncoding.EncodeToString(quote)
 
-	if namespace == "" {
-		namespace = GetNamespace()
+	if req.Namespace == "" {
+		req.Namespace = GetNamespace()
 	}
 
 	sgxAttestation := &tcsapi.QuoteAttestation{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       instanceName,
-			Namespace:  namespace,
+			Name:      req.Name,
+			Namespace: req.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				*ownerRef,
+			},
 			Finalizers: []string{TCSFinalizer},
 		},
 		Spec: v1alpha1.QuoteAttestationSpec{
@@ -130,7 +135,7 @@ func QuoteAttestationDeliver(
 			ServiceID:    tokenLabel,
 			PublicKey:    encPubKey,
 			// Using the QuoteAttestation CR name for storing encrypted CA secret
-			SecretName: instanceName,
+			SecretName: req.Name,
 		},
 	}
 
@@ -139,8 +144,8 @@ func QuoteAttestationDeliver(
 	err = c.Create(ctx, sgxAttestation)
 	if err != nil {
 		if errors.IsAlreadyExists(err) {
-			if err = c.Delete(ctx, sgxAttestation); err != nil {
-				return fmt.Errorf("failed to delete existing QuoteAttestaion CR with name '%s'. Clear this before redeploy the operator: %v", instanceName, err)
+			if err = QuoteAttestationDelete(ctx, c, req); err != nil {
+				return fmt.Errorf("failed to delete existing QuoteAttestaion CR with name '%s'. Clear this before redeploy the operator: %v", req.Name, err)
 			}
 
 			err = c.Create(ctx, sgxAttestation)
@@ -149,21 +154,21 @@ func QuoteAttestationDeliver(
 	return err
 }
 
-func QuoteAttestationDelete(ctx context.Context, c client.Client, instanceName string, ns string) error {
-	if ns == "" {
-		ns = GetNamespace()
+func QuoteAttestationDelete(ctx context.Context, c client.Client, req types.NamespacedName) error {
+	if req.Namespace == "" {
+		req.Namespace = GetNamespace()
 	}
 	sgxAttestation := &tcsapi.QuoteAttestation{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      instanceName,
-			Namespace: ns,
+			Name:      req.Name,
+			Namespace: req.Namespace,
 		},
 	}
 
 	if err := UnsetFinalizer(ctx, c, sgxAttestation, func() client.Object {
 		return sgxAttestation.DeepCopy()
 	}); err != nil {
-		return fmt.Errorf("failed unset finalizer for '%s/%s': %v", ns, instanceName, err)
+		return fmt.Errorf("failed unset finalizer for '%v': %v", req, err)
 	}
 
 	return client.IgnoreNotFound(c.Delete(ctx, sgxAttestation))

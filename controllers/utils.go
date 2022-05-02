@@ -44,6 +44,9 @@ func IssuerSpecAndStatus(issuer client.Object) (*tcsapi.TCSIssuerSpec, *tcsapi.T
 }
 
 func SignerNameForIssuer(issuerGVK schema.GroupVersionKind, name, ns string) string {
+	if issuerGVK.Kind == "TCSClusterIssuer" {
+		ns = "" // Ignore namespace for cluster-scoped type
+	}
 	signerName := strings.ToLower(issuerGVK.GroupKind().String()) + "/"
 	if ns != "" {
 		return signerName + ns + "." + name

@@ -28,7 +28,6 @@ import (
 	tcsapi "github.com/intel/trusted-certificate-issuer/api/v1alpha1"
 	"github.com/intel/trusted-certificate-issuer/controllers"
 	"github.com/intel/trusted-certificate-issuer/internal/keyprovider"
-	"github.com/intel/trusted-certificate-issuer/internal/signer"
 	"github.com/intel/trusted-certificate-issuer/internal/tlsutil"
 	testutils "github.com/intel/trusted-certificate-issuer/test/utils"
 	csrv1 "k8s.io/api/certificates/v1"
@@ -101,12 +100,9 @@ var _ = Describe("CSR controller", func() {
 		Expect(cfg).ShouldNot(BeNil())
 		Expect(k8sClient).ShouldNot(BeNil())
 
-		signers := map[string]*signer.Signer{}
-		for _, name := range knownSigners {
-			signers[name] = signer.NewSigner(name)
-		}
-
-		fakeKeyProvider = testutils.NewKeyProvider(signers)
+		fakeKeyProvider = testutils.NewKeyProvider(testutils.Config{
+			KnownSigners: knownSigners,
+		})
 
 		controller = controllers.NewCSRReconciler(k8sClient, scheme, fakeKeyProvider, false)
 	})

@@ -57,7 +57,7 @@ spec:
                 default: true
                 description: SelfSignCertificate defines weather to generate a self-signed
                   certificate for this CA issuer. When it set false, the CA is expected
-                  to get provisioned by an external key server using QuoteAttestaion
+                  to get provisioned by an external key server using QuoteAttestation
                   CRD. Default to True.
                 type: boolean
             type: object

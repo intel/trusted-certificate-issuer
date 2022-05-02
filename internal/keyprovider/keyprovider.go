@@ -44,5 +44,8 @@ type KeyProvider interface {
 
 	// ProvisionSigner stores the given CA key and certificate for the signerName.
 	// The key must be encrypted with the given publick-key used while quote-generation.
-	ProvisionSigner(signerName string, encryptedKey []byte, cert *x509.Certificate) ([]byte, error)
+	ProvisionSigner(signerName string, encryptedKey []byte, cert *x509.Certificate) (*signer.Signer, error)
+
+	// GetQuoteAndPublicKey returns SGX quote and the publickey used for generating the quote
+	GetQuoteAndPublicKey() ([]byte, interface{}, error)
 }
