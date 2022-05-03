@@ -30,6 +30,26 @@ CK_ULONG quote_offset(CK_BYTE_PTR bytes) {
 
 	return offset;
 }
+
+CK_ULONG rsa_key_params_size() {
+    return (CK_ULONG)sizeof(CK_RSA_PUBLIC_KEY_PARAMS);
+}
+
+CK_ULONG ulModulusLen_offset(CK_BYTE_PTR bytes) {
+	CK_RSA_PUBLIC_KEY_PARAMS* params = (CK_RSA_PUBLIC_KEY_PARAMS*)bytes;
+	if (params == NULL) {
+		return 0;
+	}
+	return params->ulModulusLen;
+}
+
+CK_ULONG ulExponentLen_offset(CK_BYTE_PTR bytes) {
+	CK_RSA_PUBLIC_KEY_PARAMS* params = (CK_RSA_PUBLIC_KEY_PARAMS*)bytes;
+	if (params == NULL) {
+		return 0;
+	}
+	return params->ulExponentLen;
+}
 */
 import "C"
 
@@ -69,25 +89,29 @@ const (
 	RSAKeySize                 = 3072
 )
 
+type quoteInfo struct {
+	// private key used for quote generation
+	prvKeyHandle pkcs11.ObjectHandle
+	// private key used for quote generation
+	pubKeyHandle pkcs11.ObjectHandle
+	// generated quote
+	ctkQuote  []byte
+	publicKey *rsa.PublicKey
+}
+
 type SgxContext struct {
 	// pkcs11 is needed for quote generation.
 	// There is no way to wrap/unwrap key using crypto11
 	p11Ctx *pkcs11.Ctx
 	// session opened for quote generation
 	p11Session pkcs11.SessionHandle
-	// private key used for quote generation
-	quotePrvKey pkcs11.ObjectHandle
-	// private key used for quote generation
-	quotePubKey pkcs11.ObjectHandle
-	// generated quote
-	ctkQuote []byte
 
+	quotes    map[string]*quoteInfo
 	cryptoCtx *crypto11.Context
 	ctxLock   sync.Mutex
 	cfg       *config.Config
 	k8sClient client.Client
 	signers   *signer.SignerMap
-	qaCounter uint64
 	log       logr.Logger
 }
 
@@ -99,6 +123,7 @@ func NewContext(cfg config.Config, client client.Client) (*SgxContext, error) {
 		k8sClient: client,
 		log:       ctrl.Log.WithName("SGX"),
 		signers:   signer.NewSignerMap(),
+		quotes:    map[string]*quoteInfo{},
 	}
 
 	if err := ctx.reloadCryptoContext(); err != nil {
@@ -139,18 +164,12 @@ func (ctx *SgxContext) TokenLabel() (string, error) {
 	return ctx.cfg.HSMTokenLabel, nil
 }
 
-func (ctx *SgxContext) GetQuoteAndPublicKey() ([]byte, interface{}, error) {
+func (ctx *SgxContext) GetQuoteAndPublicKey(signerName string) ([]byte, interface{}, error) {
 	if ctx == nil {
 		return nil, nil, fmt.Errorf("invalid SGX context")
 	}
-	if err := ctx.ensureQuote(); err != nil {
-		return nil, nil, err
-	}
-	key, err := ctx.quotePublicKey()
-	if err != nil {
-		return nil, nil, err
-	}
-	return ctx.ctkQuote, key, nil
+
+	return ctx.ensureQuote(signerName)
 }
 
 func (ctx *SgxContext) GetPendingSigners() []string {
@@ -249,6 +268,11 @@ func (ctx *SgxContext) RemoveSigner(name string) error {
 
 	s := ctx.signers.Get(name)
 	if s == nil {
+		if quoteInfo, ok := ctx.quotes[name]; ok {
+			ctx.p11Ctx.DestroyObject(ctx.p11Session, quoteInfo.prvKeyHandle)
+			ctx.p11Ctx.DestroyObject(ctx.p11Session, quoteInfo.pubKeyHandle)
+			delete(ctx.quotes, name)
+		}
 		return nil
 	}
 	if s.Ready() {
@@ -287,7 +311,6 @@ func (ctx *SgxContext) ProvisionSigner(signerName string, encryptedKey []byte, c
 	s := ctx.signers.Get(signerName)
 	if s == nil {
 		s = signer.NewSigner(signerName)
-		ctx.signers.Add(s)
 	}
 
 	keySizeBytes := RSAKeySize / 8
@@ -330,6 +353,7 @@ func (ctx *SgxContext) ProvisionSigner(signerName string, encryptedKey []byte, c
 	}
 
 	s.SetReady(cryptoSigner, cert)
+	ctx.signers.Add(s)
 	ctx.log.Info("Signer is ready", "signerName", s.Name())
 
 	return s, err
@@ -357,6 +381,11 @@ func (ctx *SgxContext) provisionKey(signerName string, wrappedSWK []byte, wrappe
 	ctx.ctxLock.Lock()
 	defer ctx.ctxLock.Unlock()
 
+	quoteInfo, ok := ctx.quotes[signerName]
+	if !ok || quoteInfo == nil {
+		return nil, fmt.Errorf("quote information not found for '%s'", signerName)
+	}
+
 	pCtx := ctx.p11Ctx
 	attributeSWK := []*pkcs11.Attribute{
 		pkcs11.NewAttribute(pkcs11.CKA_CLASS, pkcs11.CKO_SECRET_KEY),
@@ -367,12 +396,17 @@ func (ctx *SgxContext) provisionKey(signerName string, wrappedSWK []byte, wrappe
 		pkcs11.NewAttribute(pkcs11.CKA_UNWRAP, true),
 	}
 	rsaPkcsOaepMech := pkcs11.NewMechanism(pkcs11.CKM_RSA_PKCS_OAEP, pkcs11.NewOAEPParams(pkcs11.CKM_SHA_1, pkcs11.CKG_MGF1_SHA1, pkcs11.CKZ_DATA_SPECIFIED, nil))
-	swkHandle, err := pCtx.UnwrapKey(ctx.p11Session, []*pkcs11.Mechanism{rsaPkcsOaepMech}, ctx.quotePrvKey, wrappedSWK, attributeSWK)
+	swkHandle, err := pCtx.UnwrapKey(ctx.p11Session, []*pkcs11.Mechanism{rsaPkcsOaepMech}, quoteInfo.prvKeyHandle, wrappedSWK, attributeSWK)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unwrap symmetric key: %v", err)
 	}
 
-	defer pCtx.DestroyObject(ctx.p11Session, swkHandle)
+	defer func() {
+		pCtx.DestroyObject(ctx.p11Session, swkHandle)
+		// Once after unwrapping destroy quote info for this signer.
+		// The quote key objects get deleted by the CTK.
+		delete(ctx.quotes, signerName)
+	}()
 
 	ctx.log.Info("Unwrapped SWK Key successfully")
 
@@ -429,8 +463,6 @@ func (ctx *SgxContext) destroyP11Context() {
 	defer ctx.ctxLock.Unlock()
 	if ctx.p11Ctx != nil {
 		ctx.p11Ctx.Logout(ctx.p11Session)
-		//ctx.p11Ctx.DestroyObject(ctx.p11Session, ctx.quotePrvKey)
-		//ctx.p11Ctx.DestroyObject(ctx.p11Session, ctx.quotePubKey)
 		ctx.p11Ctx.CloseSession(ctx.p11Session)
 		ctx.p11Ctx.Destroy()
 		ctx.p11Ctx = nil
@@ -525,67 +557,37 @@ func (ctx *SgxContext) initializeSigner(s *signer.Signer) (err error) {
 	return nil
 }
 
-func (ctx *SgxContext) ensureQuote() error {
+func (ctx *SgxContext) ensureQuote(signerName string) ([]byte, interface{}, error) {
 	ctx.ctxLock.Lock()
 	defer ctx.ctxLock.Unlock()
 
-	if ctx.ctkQuote != nil {
-		return nil
+	if info, ok := ctx.quotes[signerName]; ok {
+		return info.ctkQuote, info.publicKey, nil
 	}
-	ctx.log.Info("Generating quote keypair...")
-	pub, priv, err := generateP11KeyPair(ctx.p11Ctx, ctx.p11Session)
+	ctx.log.Info("Generating quote keypair...", "forSigner", signerName)
+	pubHandle, privHandle, err := generateP11KeyPair(ctx.p11Ctx, ctx.p11Session)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	ctx.log.Info("Generating Quote...")
-	quote, err := ctx.generateQuote(pub)
+	quote, pubKey, err := ctx.generateQuote(pubHandle)
 	if err != nil {
-		ctx.p11Ctx.DestroyObject(ctx.p11Session, pub)
-		ctx.p11Ctx.DestroyObject(ctx.p11Session, priv)
-		return err
+		ctx.p11Ctx.DestroyObject(ctx.p11Session, pubHandle)
+		ctx.p11Ctx.DestroyObject(ctx.p11Session, privHandle)
+		return nil, nil, err
 	}
-	ctx.quotePubKey = pub
-	ctx.quotePrvKey = priv
-	ctx.ctkQuote = quote
-	return nil
+	info := &quoteInfo{
+		prvKeyHandle: privHandle,
+		pubKeyHandle: pubHandle,
+		ctkQuote:     quote,
+		publicKey:    pubKey,
+	}
+	ctx.quotes[signerName] = info
+	return info.ctkQuote, info.publicKey, nil
 }
 
-// quotePublicKey returns the base64 encoded key
-// used for quote generation
-func (ctx *SgxContext) quotePublicKey() (*rsa.PublicKey, error) {
-	if ctx == nil {
-		return nil, fmt.Errorf("invalid SGX context")
-	}
-	ctx.ctxLock.Lock()
-	defer ctx.ctxLock.Unlock()
-
-	template := []*pkcs11.Attribute{
-		pkcs11.NewAttribute(pkcs11.CKA_MODULUS, nil),
-		pkcs11.NewAttribute(pkcs11.CKA_PUBLIC_EXPONENT, nil),
-	}
-	attrs, err := ctx.p11Ctx.GetAttributeValue(ctx.p11Session, ctx.quotePubKey, template)
-	if err != nil {
-		return nil, err
-	}
-	var modulus = new(big.Int)
-	modulus.SetBytes(attrs[0].Value)
-	var bigExponent = new(big.Int)
-	bigExponent.SetBytes(attrs[1].Value)
-	if bigExponent.BitLen() > 32 || bigExponent.Sign() < 1 {
-		return nil, fmt.Errorf("malformed quote public key")
-	}
-	if bigExponent.Uint64() > uint64(math.MaxInt) {
-		return nil, fmt.Errorf("malformed quote public key: possible data loss in exponent value")
-	}
-	exponent := int(bigExponent.Uint64())
-	return &rsa.PublicKey{
-		N: modulus,
-		E: exponent,
-	}, nil
-}
-
-func (ctx *SgxContext) generateQuote(pubKey pkcs11.ObjectHandle) ([]byte, error) {
+func (ctx *SgxContext) generateQuote(pubKey pkcs11.ObjectHandle) ([]byte, *rsa.PublicKey, error) {
 	//reader, err := ctx.cryptoCtx.NewRandomReader()
 	//if err != nil {
 	//	return nil, fmt.Errorf("failed to initialize random reader: %v", err)
@@ -608,14 +610,50 @@ func (ctx *SgxContext) generateQuote(pubKey pkcs11.ObjectHandle) ([]byte, error)
 
 	quotePubKey, err := ctx.p11Ctx.WrapKey(ctx.p11Session, []*pkcs11.Mechanism{m}, pkcs11.ObjectHandle(0), pubKey)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	offset := uint64(C.quote_offset(*(*C.CK_BYTE_PTR)(unsafe.Pointer(&quotePubKey))))
 	if offset <= 0 || offset >= uint64(len(quotePubKey)) {
-		return nil, fmt.Errorf("quote generation failure: invalid quote")
+		return nil, nil, fmt.Errorf("quote generation failure: invalid quote")
 	}
-	return quotePubKey[offset:], nil
+
+	publicKey, err := parseQuotePublickey(quotePubKey[:offset])
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse quote public key: %v", err)
+	}
+
+	return quotePubKey[offset:], publicKey, nil
+}
+
+// parseQuotePublickey reconstruct the rsa public key
+// from received bytes, received bytes structure like this:
+// pubkey_params   |    ulExponentLen   |    ulModulusLen
+// need to slice ulExponentLen and ulModulusLen to
+// reconstruct pubkey according to the size of each item
+func parseQuotePublickey(pubkey []byte) (*rsa.PublicKey, error) {
+	paramsSize := uint64(C.rsa_key_params_size())
+	exponentLen := uint64(C.ulExponentLen_offset(*(*C.CK_BYTE_PTR)(unsafe.Pointer(&pubkey))))
+	modulusOffset := paramsSize + exponentLen
+	if modulusOffset >= uint64(len(pubkey)) {
+		return nil, fmt.Errorf("malformed quote public key: out of bounds")
+	}
+
+	var bigExponent = new(big.Int)
+	bigExponent.SetBytes(pubkey[paramsSize:modulusOffset])
+	if bigExponent.BitLen() > 32 || bigExponent.Sign() < 1 {
+		return nil, fmt.Errorf("malformed quote public key")
+	}
+	if bigExponent.Uint64() > uint64(math.MaxInt) {
+		return nil, fmt.Errorf("malformed quote public key: possible data loss in exponent value")
+	}
+	exponent := int(bigExponent.Uint64())
+	var modulus = new(big.Int)
+	modulus.SetBytes(pubkey[modulusOffset:])
+	return &rsa.PublicKey{
+		N: modulus,
+		E: exponent,
+	}, nil
 }
 
 func initP11Session(p11Ctx *pkcs11.Ctx, tokenLabel, userPin, soPin string) (pkcs11.SessionHandle, error) {
