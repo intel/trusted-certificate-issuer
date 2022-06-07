@@ -6,13 +6,15 @@ This document covers how to install Trusted Certificate Service (TCS) issuer by 
 
 - Helm 3.x
 - Kubernetes cluster with SGX node
+- cert-manager Custom Resource Definitions ([CRDs](https://cert-manager.io/docs/installation/helm/#3-install-customresourcedefinitions))
+
 ## Installing the Chart
 
 Use the following command to install TCS (to namespace `tcs-issuer` which will be created).
 
 > NOTE: This will also install the CRDs.
 
-```sh
+```console
 $ helm repo add tcs https://intel.github.io/trusted-certificate-issuer
 $ helm repo update
 $ helm install tcs-issuer tcs/tcs-issuer -n tcs-issuer --create-namespace
@@ -20,7 +22,7 @@ $ helm install tcs-issuer tcs/tcs-issuer -n tcs-issuer --create-namespace
 
 Use the following command to verify the TCS installation status.
 
-```sh
+```console
 $ helm ls -n tcs-issuer
 ```
 
@@ -30,7 +32,7 @@ In case you want to uninstall TCS, use the following command:
 
 > NOTE: the below command does not uninstall the CRDs. 
 
-```sh
+```console
 $ helm delete tcs-issuer -n tcs-issuer
 ```
 
