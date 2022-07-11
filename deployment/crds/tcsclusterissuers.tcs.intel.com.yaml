@@ -1,3 +1,5 @@
+
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -33,10 +35,14 @@ spec:
         description: TCSClusterIssuer is the Schema for the clusterissuers API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
           metadata:
             type: object
@@ -44,33 +50,43 @@ spec:
             description: TCSIssuerSpec defines the desired state of Issuer
             properties:
               secretName:
-                description: SecretName is the name of the secret object to be created by issuer controller to hold ca certificate
+                description: SecretName is the name of the secret object to be created
+                  by issuer controller to hold ca certificate
                 type: string
               selfSign:
                 default: true
-                description: SelfSignCertificate defines weather to generate a self-signed certificate for this CA issuer. When it set false, the CA is expected to get provisioned by an external key server using QuoteAttestaion CRD. Default to True.
+                description: SelfSignCertificate defines weather to generate a self-signed
+                  certificate for this CA issuer. When it set false, the CA is expected
+                  to get provisioned by an external key server using QuoteAttestation
+                  CRD. Default to True.
                 type: boolean
             type: object
           status:
             description: TCSIssuerStatus defines the observed state of Issuer
             properties:
               conditions:
-                description: List of status conditions to indicate the status of a CertificateRequest. Known condition types are `Ready`.
+                description: List of status conditions to indicate the status of a
+                  CertificateRequest. Known condition types are `Ready`.
                 items:
-                  description: IssuerCondition contains condition information for an Issuer.
+                  description: IssuerCondition contains condition information for
+                    an Issuer.
                   properties:
                     lastTransitionTime:
-                      description: LastTransitionTime is the timestamp corresponding to the last status change of this condition.
+                      description: LastTransitionTime is the timestamp corresponding
+                        to the last status change of this condition.
                       format: date-time
                       type: string
                     message:
-                      description: Message is a human readable description of the details of the last transition, complementing reason.
+                      description: Message is a human readable description of the
+                        details of the last transition, complementing reason.
                       type: string
                     reason:
-                      description: Reason is a brief machine readable explanation for the condition's last transition.
+                      description: Reason is a brief machine readable explanation
+                        for the condition's last transition.
                       type: string
                     status:
-                      description: Status of the condition, one of ('True', 'False', 'Unknown').
+                      description: Status of the condition, one of ('True', 'False',
+                        'Unknown').
                       type: string
                     type:
                       description: Type of the condition, known values are ('Ready').
