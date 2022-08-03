@@ -351,8 +351,8 @@ spec:
           periodSeconds: 5
         resources:
           limits:
-            cpu: 100m
-            memory: 30Mi
+            cpu: 500m
+            memory: 100Mi
             sgx.intel.com/enclave: 1
             sgx.intel.com/epc: 512Ki
           requests:
