@@ -23,6 +23,11 @@ import (
 
 // TCSIssuerSpec defines the desired state of Issuer
 type TCSIssuerSpec struct {
+	// Labels to set for the sub-objects (QuoteAttestation, Secret etc.,)
+	// created for this issuer.
+	// +optional
+	Labels map[string]string `json:"labels,omitempty"`
+
 	// SecretName is the name of the secret object to be
 	// created by issuer controller to hold ca certificate
 	SecretName string `json:"secretName,omitempty"`

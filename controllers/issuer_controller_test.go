@@ -55,7 +55,7 @@ var _ = Describe("Issuer controller", func() {
 	var fakeKeyProvider keyprovider.KeyProvider
 
 	os.Setenv("WATCH_NAMESPACE", testIssuerNS)
-	newIssuer := func(isCluster bool, objMeta types.NamespacedName, secretName string, selfSign bool) client.Object {
+	newIssuerFunc := func(isCluster bool, objMeta types.NamespacedName, secretName string, selfSign bool, labels map[string]string) client.Object {
 		meta := metav1.ObjectMeta{
 			Name:      objMeta.Name,
 			Namespace: objMeta.Namespace,
@@ -63,6 +63,7 @@ var _ = Describe("Issuer controller", func() {
 		spec := tcsapi.TCSIssuerSpec{
 			SecretName:          secretName,
 			SelfSignCertificate: &selfSign,
+			Labels:              labels,
 		}
 		if isCluster {
 			return &tcsapi.TCSClusterIssuer{
@@ -85,6 +86,14 @@ var _ = Describe("Issuer controller", func() {
 		}
 	}
 
+	newIssuer := func(isCluster bool, objMeta types.NamespacedName, secretName string, selfSign bool) client.Object {
+		return newIssuerFunc(isCluster, objMeta, secretName, selfSign, nil)
+	}
+
+	newIssuerWithLabels := func(isCluster bool, objMeta types.NamespacedName, secretName string, selfSign bool, labels map[string]string) client.Object {
+		return newIssuerFunc(isCluster, objMeta, secretName, selfSign, labels)
+	}
+
 	validateIssuerStatus := func(objName types.NamespacedName, issuer client.Object, expectedState v1.ConditionStatus, message string) {
 		err := k8sClient.Get(context.TODO(), objName, issuer)
 		ExpectWithOffset(1, err).ShouldNot(HaveOccurred(), "failed to get issuer")
@@ -96,12 +105,24 @@ var _ = Describe("Issuer controller", func() {
 		ExpectWithOffset(1, ready.Message).Should(HaveSuffix(message), "unexpected status condition")
 	}
 
-	validateIssuerSecret := func(key types.NamespacedName) {
+	validateIssuerSecret := func(key types.NamespacedName) *v1.Secret {
 		secret := &v1.Secret{}
 		err := k8sClient.Get(context.TODO(), key, secret)
 		ExpectWithOffset(1, err).ShouldNot(HaveOccurred(), "failed to get issuer secret: %v", key)
 		ExpectWithOffset(1, secret.Data[v1.TLSCertKey]).ShouldNot(BeEmpty(), "expected certificate in the secret")
 		ExpectWithOffset(1, secret.Data[v1.TLSPrivateKeyKey]).Should(BeEmpty(), "expected no private eky in the secret")
+		return secret
+	}
+
+	validateIssuerSecretWithLabels := func(key types.NamespacedName, labels map[string]string) {
+		secret := validateIssuerSecret(key)
+		if labels == nil {
+			ExpectWithOffset(1, secret.Labels).Should(BeNil(), "unexpected labels")
+		} else {
+			for k, v := range labels {
+				ExpectWithOffset(1, secret.Labels).Should(HaveKeyWithValue(k, v), "labels mismatch")
+			}
+		}
 	}
 
 	validateSignerSecrets := func(issuerGVK schema.GroupVersionKind, objName types.NamespacedName) {
@@ -501,6 +522,98 @@ var _ = Describe("Issuer controller", func() {
 				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
 				Expect(res.Requeue).Should(BeFalse(), "unexpected retry reconcile")
 				validateIssuerStatus(objName, issuer, v1.ConditionFalse, keyProviderConfig.ProvisionSignerError.ErrMessage)
+			})
+
+			It("shall pass labels to issuer secret", func() {
+				objName.Name = "issuer-with-labels"
+				issuer := newIssuer(isCluster, objName, "ca-secret", true)
+				err := k8sClient.Create(context.TODO(), issuer)
+				Expect(err).ShouldNot(HaveOccurred(), "failed to crate issuer object")
+				defer k8sClient.Delete(context.TODO(), issuer)
+
+				res, err := ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
+				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
+				Expect(res.Requeue).Should(BeTrue(), "expected retry reconcile on fist seen")
+				validateIssuerStatus(objName, issuer, v1.ConditionUnknown, "First seen")
+
+				res, err = ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
+				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
+				Expect(res.Requeue).Should(BeFalse(), "unexpected retry reconcile")
+				validateIssuerStatus(objName, issuer, v1.ConditionTrue, "Success")
+
+				validateIssuerSecretWithLabels(types.NamespacedName{Name: "ca-secret", Namespace: objName.Namespace}, issuer.GetLabels())
+				validateSignerSecrets(issuerGVK, objName)
+			})
+
+			It("shall pass labels to quote attestation", func() {
+				objName.Name = "issuer-with-labels"
+				issuerLabels := map[string]string{"foo": "bar"}
+				issuer := newIssuerWithLabels(isCluster, objName, "ca-secret", false, issuerLabels)
+				err := k8sClient.Create(context.TODO(), issuer, &client.CreateOptions{
+					Raw: &metav1.CreateOptions{
+						FieldValidation: metav1.FieldValidationStrict,
+					},
+				})
+				Expect(err).ShouldNot(HaveOccurred(), "failed to crate issuer object")
+				defer k8sClient.Delete(context.TODO(), issuer)
+
+				err = k8sClient.Get(context.TODO(), objName, issuer)
+				Expect(err).ShouldNot(HaveOccurred(), "fetch issuer object")
+
+				res, err := ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
+				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
+				Expect(res.Requeue).Should(BeTrue(), "expected retry reconcile on fist seen")
+				validateIssuerStatus(objName, issuer, v1.ConditionUnknown, "First seen")
+
+				res, err = ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
+				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
+				Expect(res.Requeue).Should(BeTrue(), "unexpected retry reconcile")
+				validateIssuerStatus(objName, issuer, v1.ConditionFalse, "Initiated key provisioning using QuoteAttestation")
+
+				res, err = ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
+				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
+				Expect(res.Requeue).Should(BeTrue(), "unexpected retry reconcile")
+				validateIssuerStatus(objName, issuer, v1.ConditionFalse, "Waiting for key provisioning")
+
+				qa := &tcsapi.QuoteAttestation{}
+				err = k8sClient.Get(context.TODO(), objName, qa)
+				Expect(err).ShouldNot(HaveOccurred(), "retrieve issuer's QuoteAttestation object")
+				for k, v := range issuerLabels {
+					Expect(qa.Labels).Should(HaveKeyWithValue(k, v), "quote attestation object labels mismatch")
+				}
+
+				// Update QuoteAttestation with CA key and certificate
+				key, err := rsa.GenerateKey(rand.Reader, 3072)
+				Expect(err).ShouldNot(HaveOccurred(), "create CA key")
+				cert, err := testutils.NewCACertificate(key, time.Now(), time.Hour, true)
+				Expect(err).ShouldNot(HaveOccurred(), "create CA certificate")
+
+				qaSecret := &v1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      qa.Spec.SecretName,
+						Namespace: qa.Namespace,
+					},
+					Data: map[string][]byte{
+						// this supposed to be an encrypted key
+						v1.TLSPrivateKeyKey: []byte(base64.StdEncoding.EncodeToString(tlsutil.EncodeKey(key))),
+						v1.TLSCertKey:       []byte(base64.StdEncoding.EncodeToString(tlsutil.EncodeCert(cert))),
+					},
+				}
+				err = k8sClient.Create(context.TODO(), qaSecret)
+				Expect(err).ShouldNot(HaveOccurred(), "create CA secret")
+				qa.Status.SetCondition(tcsapi.ConditionReady, v1.ConditionTrue, tcsapi.ReasonControllerReconcile, "Quote attestation success")
+				err = k8sClient.Status().Update(context.TODO(), qa)
+				Expect(err).ShouldNot(HaveOccurred(), "Update QA status")
+
+				res, err = ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
+				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
+				Expect(res.Requeue).Should(BeFalse(), "unexpected retry reconcile")
+				validateIssuerStatus(objName, issuer, v1.ConditionTrue, "Success")
+				validateIssuerSecretWithLabels(types.NamespacedName{Name: "ca-secret", Namespace: objName.Namespace}, issuerLabels)
+				validateSignerSecrets(issuerGVK, objName)
+
+				err = k8sClient.Get(context.TODO(), objName, qa)
+				Expect(err).Should(HaveOccurred(), "check if QuoteAttestation object gets deleted")
 			})
 		})
 	}

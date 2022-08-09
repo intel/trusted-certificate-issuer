@@ -141,7 +141,7 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 						UID:        issuer.GetUID(),
 					}
 					log.Info("Initiating quote attestation", "signer", signerName)
-					if err := k8sutil.QuoteAttestationDeliver(ctx, r.Client, qaReq, tcsapi.RequestTypeKeyProvisioning, signerName, quote, publickey, "", ownerRef); err != nil {
+					if err := k8sutil.QuoteAttestationDeliver(ctx, r.Client, qaReq, tcsapi.RequestTypeKeyProvisioning, signerName, quote, publickey, "", ownerRef, issuerSpec.Labels); err != nil {
 						log.Error(err, "Error while creating quote attestation")
 						issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", fmt.Sprintf("failed to initiate quote attestation: %v", err.Error()))
 						return ctrl.Result{Requeue: true}, nil
@@ -199,7 +199,7 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 			Name:       issuer.GetName(),
 			UID:        issuer.GetUID(),
 		}
-		if err := k8sutil.CreateCASecret(context.TODO(), r.Client, s.Certificate(), issuerSpec.SecretName, ns, ownerRef); err != nil {
+		if err := k8sutil.CreateCASecret(context.TODO(), r.Client, s.Certificate(), issuerSpec.SecretName, ns, ownerRef, issuerSpec.Labels); err != nil {
 			log.Info("failed to create issuer secret", "error", err)
 			issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", err.Error())
 			return ctrl.Result{RequeueAfter: time.Minute}, err
