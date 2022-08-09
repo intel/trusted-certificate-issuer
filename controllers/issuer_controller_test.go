@@ -213,7 +213,12 @@ var _ = Describe("Issuer controller", func() {
 				res, err = ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
 				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
 				Expect(res.Requeue).Should(BeTrue(), "unexpected retry reconcile")
-				validateIssuerStatus(objName, issuer, v1.ConditionFalse, "waiting for key provisioning")
+				validateIssuerStatus(objName, issuer, v1.ConditionFalse, "Initiated key provisioning using QuoteAttestation")
+
+				res, err = ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
+				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
+				Expect(res.Requeue).Should(BeTrue(), "unexpected retry reconcile")
+				validateIssuerStatus(objName, issuer, v1.ConditionFalse, "Waiting for key provisioning")
 
 				qa := &tcsapi.QuoteAttestation{}
 				err = k8sClient.Get(context.TODO(), objName, qa)
@@ -253,7 +258,7 @@ var _ = Describe("Issuer controller", func() {
 				Expect(err).Should(HaveOccurred(), "check if QuoteAttestation object gets deleted")
 			})
 
-			It("shall handle quoate attestation failure", func() {
+			It("shall handle quote attestation failure", func() {
 				objName.Name = "failed-attestation"
 				issuer := newIssuer(isCluster, objName, "ca-secret", false)
 				err := k8sClient.Create(context.TODO(), issuer)
@@ -271,7 +276,12 @@ var _ = Describe("Issuer controller", func() {
 				res, err = ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
 				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
 				Expect(res.Requeue).Should(BeTrue(), "unexpected retry reconcile")
-				validateIssuerStatus(objName, issuer, v1.ConditionFalse, "waiting for key provisioning")
+				validateIssuerStatus(objName, issuer, v1.ConditionFalse, "Initiated key provisioning using QuoteAttestation")
+
+				res, err = ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
+				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
+				Expect(res.Requeue).Should(BeTrue(), "unexpected retry reconcile")
+				validateIssuerStatus(objName, issuer, v1.ConditionFalse, "Waiting for key provisioning")
 
 				qa := &tcsapi.QuoteAttestation{}
 				err = k8sClient.Get(context.TODO(), objName, qa)
@@ -304,7 +314,12 @@ var _ = Describe("Issuer controller", func() {
 				res, err = ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
 				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
 				Expect(res.Requeue).Should(BeTrue(), "unexpected retry reconcile")
-				validateIssuerStatus(objName, issuer, v1.ConditionFalse, "waiting for key provisioning")
+				validateIssuerStatus(objName, issuer, v1.ConditionFalse, "Initiated key provisioning using QuoteAttestation")
+
+				res, err = ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
+				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
+				Expect(res.Requeue).Should(BeTrue(), "unexpected retry reconcile")
+				validateIssuerStatus(objName, issuer, v1.ConditionFalse, "Waiting for key provisioning")
 
 				qa := &tcsapi.QuoteAttestation{}
 				err = k8sClient.Get(context.TODO(), objName, qa)
@@ -339,7 +354,12 @@ var _ = Describe("Issuer controller", func() {
 				res, err = ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
 				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
 				Expect(res.Requeue).Should(BeTrue(), "unexpected retry reconcile")
-				validateIssuerStatus(objName, issuer, v1.ConditionFalse, "waiting for key provisioning")
+				validateIssuerStatus(objName, issuer, v1.ConditionFalse, "Initiated key provisioning using QuoteAttestation")
+
+				res, err = ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
+				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
+				Expect(res.Requeue).Should(BeTrue(), "unexpected retry reconcile")
+				validateIssuerStatus(objName, issuer, v1.ConditionFalse, "Waiting for key provisioning")
 
 				// Update QA object with incomplete secret
 				qa := &tcsapi.QuoteAttestation{}
@@ -390,7 +410,12 @@ var _ = Describe("Issuer controller", func() {
 				res, err = ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
 				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
 				Expect(res.Requeue).Should(BeTrue(), "unexpected retry reconcile")
-				validateIssuerStatus(objName, issuer, v1.ConditionFalse, "waiting for key provisioning")
+				validateIssuerStatus(objName, issuer, v1.ConditionFalse, "Initiated key provisioning using QuoteAttestation")
+
+				res, err = ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
+				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
+				Expect(res.Requeue).Should(BeTrue(), "unexpected retry reconcile")
+				validateIssuerStatus(objName, issuer, v1.ConditionFalse, "Waiting for key provisioning")
 
 				// Update QA object with incomplete secret
 				qa := &tcsapi.QuoteAttestation{}
@@ -439,7 +464,12 @@ var _ = Describe("Issuer controller", func() {
 				res, err = ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
 				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
 				Expect(res.Requeue).Should(BeTrue(), "unexpected retry reconcile")
-				validateIssuerStatus(objName, issuer, v1.ConditionFalse, "waiting for key provisioning")
+				validateIssuerStatus(objName, issuer, v1.ConditionFalse, "Initiated key provisioning using QuoteAttestation")
+
+				res, err = ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
+				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
+				Expect(res.Requeue).Should(BeTrue(), "unexpected retry reconcile")
+				validateIssuerStatus(objName, issuer, v1.ConditionFalse, "Waiting for key provisioning")
 
 				qa := &tcsapi.QuoteAttestation{}
 				err = k8sClient.Get(context.TODO(), objName, qa)
