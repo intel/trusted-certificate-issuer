@@ -148,7 +148,7 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 					}
 
 					issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", "Initiated key provisioning using QuoteAttestation")
-					return ctrl.Result{}, nil
+					return ctrl.Result{Requeue: true}, nil
 				}
 				log.Error(err, "Error while checking if quote attestation exists")
 				issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", fmt.Sprintf("failed to get quote attestation status: %v", err.Error()))
