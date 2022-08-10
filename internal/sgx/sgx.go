@@ -343,6 +343,7 @@ func (ctx *SgxContext) ProvisionSigner(signerName string, encryptedKey []byte, c
 		ctx.cryptoCtx.DeleteCertificate(nil, []byte(signerName), nil)
 		return nil, fmt.Errorf("failed to load the stored key: %v", err)
 	}
+	s.SetReady(cryptoSigner, cert)
 
 	if err := selfca.ValidateCACertificate(cert, cryptoSigner.Public()); err != nil {
 		if removeError := ctx.removeSignerInToken(s); removeError != nil {
@@ -352,7 +353,6 @@ func (ctx *SgxContext) ProvisionSigner(signerName string, encryptedKey []byte, c
 		return nil, fmt.Errorf("CA certificate validation failure: %v", err)
 	}
 
-	s.SetReady(cryptoSigner, cert)
 	ctx.signers.Add(s)
 	ctx.log.Info("Signer is ready", "signerName", s.Name())
 
