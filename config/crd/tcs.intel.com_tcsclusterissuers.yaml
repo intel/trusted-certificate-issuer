@@ -49,6 +49,12 @@ spec:
           spec:
             description: TCSIssuerSpec defines the desired state of Issuer
             properties:
+              labels:
+                additionalProperties:
+                  type: string
+                description: Labels to set for the sub-objects (QuoteAttestation,
+                  Secret etc.,) created for this issuer.
+                type: object
               secretName:
                 description: SecretName is the name of the secret object to be created
                   by issuer controller to hold ca certificate

@@ -52,7 +52,7 @@ func GetNamespace() string {
 	return ns
 }
 
-func CreateCASecret(ctx context.Context, c client.Client, cert *x509.Certificate, name, ns string, owner metav1.OwnerReference) error {
+func CreateCASecret(ctx context.Context, c client.Client, cert *x509.Certificate, name, ns string, owner metav1.OwnerReference, labels map[string]string) error {
 	if ns == "" {
 		ns = GetNamespace()
 	}
@@ -61,6 +61,7 @@ func CreateCASecret(ctx context.Context, c client.Client, cert *x509.Certificate
 			Name:            name,
 			Namespace:       ns,
 			OwnerReferences: []metav1.OwnerReference{owner},
+			Labels:          labels,
 			Finalizers:      []string{TCSFinalizer},
 		},
 		Type: v1.SecretTypeTLS,
@@ -105,7 +106,8 @@ func QuoteAttestationDeliver(
 	quote []byte,
 	quotePubKey interface{},
 	tokenLabel string,
-	ownerRef *metav1.OwnerReference) error {
+	ownerRef *metav1.OwnerReference,
+	labels map[string]string) error {
 
 	encPubKey, err := tlsutil.EncodePublicKey(quotePubKey)
 	if err != nil {
@@ -125,6 +127,7 @@ func QuoteAttestationDeliver(
 			OwnerReferences: []metav1.OwnerReference{
 				*ownerRef,
 			},
+			Labels:     labels,
 			Finalizers: []string{TCSFinalizer},
 		},
 		Spec: v1alpha1.QuoteAttestationSpec{
