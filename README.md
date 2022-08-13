@@ -19,11 +19,18 @@
 ## Overview
 
 <!-- TODO: Review and rephrase this section -->
-Trusted Certificate Service (TCS) is a Kubernetes certificate signing solution that uses the security capabilities provided by the Intel® SGX. The signing key is stored and used inside the SGX enclave(s) and is never stored in clear anywhere in the system. TCS is implemented as a [cert-manager external issuer](https://cert-manager.io/docs/configuration/external/) by providing support for both cert-manager and kubernetes certificate signing APIs.
+Trusted Certificate Service (TCS) is a Kubernetes certificate signing solution
+that uses the security capabilities provided by Intel® Software Guard Extensions
+(Intel® SGX). The signing key is stored and used inside the Intel SGX enclave(s)
+and is never stored in clear anywhere in the system. TCS is implemented as a
+[cert-manager external issuer](https://cert-manager.io/docs/configuration/external/)
+by providing support for both cert-manager and kubernetes certificate signing APIs.
 
 ## Getting started
 
-All the examples in this page are using self-signed CA certificates. If you are looking for more advanced use cases (e.g., Istio integration) please check the [sample use cases](#sample-use-cases).
+All the examples in this page are using self-signed CA certificates. If you are
+looking for more advanced use cases (e.g., Istio integration) please check the
+[sample use cases](#sample-use-cases).
 
 ### Prerequisites
 
@@ -33,7 +40,7 @@ Prerequisites for building and running Trusted Certificate Service:
 - [Intel® SGX device plugin](https://github.com/intel/intel-device-plugins-for-kubernetes/blob/main/cmd/sgx_plugin/README.md) for Kubernetes
 - [Intel® SGX AESM daemon](https://github.com/intel/linux-sgx#install-the-intelr-sgx-psw)
 - [cert-manager](https://cert-manager.io/next-docs/installation/). The `cmctl` is also used later in the examples so you may want to install it also.
-- Linux kernel version 5.11 or later on the host (in tree SGX driver)
+- Linux kernel version 5.11 or later on the host (in tree Intel SGX driver)
 - git, or similar tool, to obtain the source code
 - Docker, or similar tool, to build container images
 - Container registry ([local](https://docs.docker.com/registry/deploying/) or remote)
@@ -124,19 +131,36 @@ NAME                  TYPE                                  DATA   AGE
 my-ca-cert            kubernetes.io/tls                     2      3h14m
 ```
 
-The above issuer creates and stores it's private key inside the
-SGX enclave and the root certificate is saved as Kubernetes Secret with name
+The above issuer creates and stores it's private key inside the Intel
+SGX enclave and the root certificate is saved as a Kubernetes Secret with name
 specified with `spec.secretName`, under the issuer's namespace.
 
-Typically the issuer secret (`my-ca-cert` in our case) contains both the certificate and the private key. But in Trusted Certificate Service case, the private key is empty since they key is stored and used inside the SGX enclave. You can verify the empty private key in the secret with the following command:
+Typically the issuer secret (`my-ca-cert` in our case) contains both the
+certificate and the private key. But in the Trusted Certificate Service case, the
+private key is empty since they key is stored and used inside a Intel SGX
+enclave. You can verify the empty private key in the secret with the following
+command:
 
 ```sh
 kubectl get secrets -n sandbox my-ca-cert -o jsonpath='{.data.tls\.key}'
 ```
 
+<img src="docs/images/tcs-kubernetes.png" alt="drawing" width="50%"/>
+
+Figure 1: Trusted Certificate Install
+
+1. The `TCSIssuer` is created.
+1. This automatically creates the `my-ca-cert` secret. The `tls.key` field is blank
+because the private key is actually created and stored within a Intel SGX enclave.
+
+Below is a demo of the install process.
+
+<a href="https://asciinema.org/a/509919"><img src="https://asciinema.org/a/509919.svg" width="60%"/></a>
+
 ### Create certificates
 
-Creating and signing certificates can be done by using cert-manager `Certificate` or Kubernetes `CertificateSigningRequest` APIs.
+Creating and signing certificates can be done by using cert-manager `Certificate` 
+or Kubernetes `CertificateSigningRequest` APIs.
 
 #### Using cert-manager Certificate
 
@@ -194,6 +218,26 @@ secret/demo-cert-tls         kubernetes.io/tls                     2      2m1s
 secret/my-ca-cert            kubernetes.io/tls                     2      3h14m
 ```
 
+<img src="docs/images/tcs-kubernetes-certmanager.png" alt="drawing" width="60%"/>
+
+Figure 2: Trusted Certificate Issuer with cert-manager
+
+1. The `TCSIssuer` is created.
+1. This automatically creates the `my-ca-cert` secret.
+1. A user creates a `Certificate` object specifying to use the TCS Issuer.
+1. cert-manager automatically creates a `CertificateRequests` object.
+1. A user approves the `CertificateRequests` object.
+1. The TCS Controller then takes the request and signs the certificate inside
+the Intel SGX enclave using the private key stored within that enclave.
+1. The signed certificate is then copied into the `demo-cert-tls` secret that was
+specified in the original `Certificate` object.
+1. Finally, that same signed certificate is copied back into the `CertificateRequests`
+object.
+
+Below is a demo of this working with cert-manager.
+
+<a href="https://asciinema.org/a/509920"><img src="https://asciinema.org/a/509920.svg" width="60%"/></a>
+
 #### Using Kubernetes CSR
 
 This example shows how to request an X509 certificate signed by the Trusted Certificate Service
@@ -212,7 +256,7 @@ in the form of `<issuer-type>.<issuer-group>/<issuer-namespace>.<issuer-name>`.
 In this example the signer name is `tcsissuer.tcs.intel.com/sandbox.my-ca`.
 
 **Note:** the issuer namespace in the case of `tcsclusterissuer` is the namespace
-of the Trusted Certificate Service. 
+of the Trusted Certificate Service.
 
 ```sh
 cat <<EOF |kubectl apply -f -
@@ -244,7 +288,9 @@ Privileged user needs to approve the `test-csr` with the following command:
 # Approve the CSR so the TCS controller generates the certificate
 kubectl certificate approve test-csr
 ```
-Once the request is approved Trusted Certificate Service signs it. At this point the CSR contains the requested certificate signed by the CA using the private key stored inside the SGX enclave.
+Once the request is approved, the Trusted Certificate Service signs it. At this
+point the CSR contains the requested certificate signed by the CA using the
+private key stored inside the Intel SGX enclave.
 
 You can examine the CSR with the following command:
 
@@ -264,7 +310,24 @@ Subject:
          Serial Number:  
          Organization:   Foo Company
 ```
+<img src="docs/images/tcs-kubernetes-csr.png" alt="drawing" width="60%"/>
 
+Figure 3: Trusted Certificate Issuer with Kubernetes CSR
+
+1. The `TCSIssuer` is created.
+1. This automatically creates the `my-ca-cert` secret.
+1. A user creates a certificate signing request using openssl and saving the
+private key. Using that `csr.pem` file, a `CertificateSigningRequest` object is
+created in Kubernetes.
+1. A user approves the `CertificateSigningRequest` object.
+1. The TCS Controller then takes the request and signs the certificate inside
+the Intel SGX enclave using the private key stored within that enclave.
+1. The signed certificate is then copied back into the original `CertificateSigningRequest`
+object into the `certificate` field.
+
+Below is a demo of this working with Kubernetes CSR.
+
+<a href="https://asciinema.org/a/509921"><img src="https://asciinema.org/a/509921.svg" width="60%"/></a>
 
 ## Deployment in Azure
 
