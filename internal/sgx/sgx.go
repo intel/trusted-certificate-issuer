@@ -588,21 +588,33 @@ func (ctx *SgxContext) ensureQuote(signerName string) ([]byte, interface{}, erro
 }
 
 func (ctx *SgxContext) generateQuote(pubKey pkcs11.ObjectHandle) ([]byte, *rsa.PublicKey, error) {
-	//reader, err := ctx.cryptoCtx.NewRandomReader()
-	//if err != nil {
-	//	return nil, fmt.Errorf("failed to initialize random reader: %v", err)
-	//}
-
-	//bytes, err := generateKeyID(reader, C.NONCE_LENGTH)
-	//if err != nil {
-	//	return nil, err
-	//}
-	// Wrap the key
 	quoteParams := C.CK_ECDSA_QUOTE_RSA_PUBLIC_KEY_PARAMS{
 		qlPolicy: C.SGX_QL_PERSISTENT,
 	}
-	for i := 0; i < C.NONCE_LENGTH; i++ {
-		quoteParams.nonce[i] = C.CK_BYTE(i)
+
+	if ctx.cfg.RandomNonce {
+		// KMRA 2.2+ expects nonce in the below format:
+		// --------------------------------------
+		// | 28 random bytes | 4 byte timestamp |
+		// --------------------------------------
+		reader, err := ctx.cryptoCtx.NewRandomReader()
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to initialize random reader: %v", err)
+		}
+		randBytes, err := generateKeyID(reader, C.NONCE_LENGTH-4)
+		if err != nil {
+			return nil, nil, err
+		}
+		now := uint32(time.Now().Unix())
+		timestamp := (*[4]byte)(unsafe.Pointer(&now))[:]
+		nonce := append(randBytes, timestamp...)
+		for i := 0; i < C.NONCE_LENGTH; i++ {
+			quoteParams.nonce[i] = C.CK_BYTE(nonce[i])
+		}
+	} else {
+		for i := 0; i < C.NONCE_LENGTH; i++ {
+			quoteParams.nonce[i] = C.CK_BYTE(i)
+		}
 	}
 
 	params := C.GoBytes(unsafe.Pointer(&quoteParams), C.int(unsafe.Sizeof(quoteParams)))

@@ -26,6 +26,7 @@ type Config struct {
 	LeaderElection     bool
 	CertManagerIssuer  bool
 	CSRFullCertChain   bool
+	RandomNonce        bool
 
 	HSMTokenLabel string
 	HSMUserPin    string

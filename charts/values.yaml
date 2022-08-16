@@ -8,3 +8,4 @@ image:
 controllerExtraArgs: {}
 #controllerExtraArgs: |-
 #  - --csr-full-cert-chain=true
+#  - --use-random-nonce=true
