@@ -45,6 +45,7 @@ spec:
         - --health-probe-bind-address=:8083
         - --user-pin=$USER_PIN
         - --so-pin=$SO_PIN
+        - --use-random-nonce=true # Disable this if using KMRA version < 2.2
         image: tcs-issuer
         imagePullPolicy: Always
         name: tcs-issuer
