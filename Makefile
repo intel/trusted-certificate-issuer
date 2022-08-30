@@ -112,6 +112,12 @@ deploy-manifests: manifests kustomize
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
 
+VERSION ?=
+release-branch:
+ifeq ("$(VERSION)", "")
+	$(error "Set release version using VERSION make variable. Example: `make release VERSION=0.1.0` ")
+endif
+	./hack/prepare-release-branch.sh --version $(VERSION)
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 controller-gen: ## Download controller-gen locally if necessary.
