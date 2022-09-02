@@ -1,7 +1,8 @@
-REGISTRY ?= intel
+REGISTRY ?= docker.io
+IMG_NAME ?= intel/trusted-certificate-issuer
 IMG_TAG ?= latest
 # Image URL to use all building/pushing image targets
-IMG ?= $(REGISTRY)/trusted-certificate-issuer:$(IMG_TAG)
+IMG ?= $(REGISTRY)/$(IMG_NAME):$(IMG_TAG)
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true,preserveUnknownFields=false"
 
