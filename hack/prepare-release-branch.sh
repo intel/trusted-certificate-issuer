@@ -50,13 +50,13 @@ function Cleanup {
 }
 trap Cleanup EXIT
 
+SHORT_VERSION=$(echo $VERSION | sed -e 's/\([0-9]*\.[0-9]*\)\..*/\1/')
 echo "Using release VERSION=$VERSION"
 
-release_branch="release-v$VERSION"
-
+release_branch="release-$SHORT_VERSION"
 cd "$REPO_ROOT"
 git fetch origin
-git checkout -b $release_branch $(git show --oneline origin/main | cut -f1 -d ' ')
+git checkout -b $release_branch $(git show --oneline origin/main | head -1 | cut -f1 -d ' ')
 make generate deploy-manifests REGISTRY="intel" IMG_TAG=$VERSION
 sed -i -e "s;\(.*version: \).*;\1$VERSION;g" -e 's;\(.*appVersion: \).*;\1"'$VERSION'";g' ./charts/Chart.yaml
 sed -i "s;\(.*tag: \).*;\1$VERSION;g" ./charts/values.yaml
