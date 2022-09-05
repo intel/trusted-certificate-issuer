@@ -1,7 +1,7 @@
 image:
-  hub: intel
-  name: trusted-certificate-issuer
-  tag: "latest"
+  hub: docker.io
+  name: intel/trusted-certificate-issuer
+  tag: 0.2.0
   pullPolicy: Always
 
 # Any extra arguments for tcs-controller
