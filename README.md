@@ -101,7 +101,7 @@ tcs-controller-5dd5c46b44-4nz9f   1/1     Running   0          30m
 ### Create an Issuer
 
 Once the deployment is up and running, you are ready to provision TCS
-issuer(s) using either a namespace-scoped `TCIssuer` or a
+issuer(s) using either a namespace-scoped `TCSIssuer` or a
 cluster-scoped `TCSClusterIssuer` resource.
 
 The example below creates a TCS issuer named `my-ca` for `sandbox` namespace:
