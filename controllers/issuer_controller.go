@@ -104,14 +104,12 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 		issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionUnknown, "Reconcile", "First seen")
 		return ctrl.Result{Requeue: true}, nil
 	}
-	if ready.Status == v1.ConditionTrue {
-		log.Info("Ignoring as the issuer is ready")
-		return ctrl.Result{}, nil
-	}
 
+	newSigner := false
 	signerName := r.signerNameForIssuer(issuer)
 	s, err := r.KeyProvider.GetSignerForName(signerName)
 	if errors.Is(err, keyprovider.ErrNotFound) {
+		newSigner = true
 		if issuerSpec.SelfSignCertificate != nil && *issuerSpec.SelfSignCertificate {
 			log.Info("Adding new signer for", "issuer", req.Name)
 			if s, err = r.KeyProvider.AddSigner(signerName, true); err != nil {
@@ -199,13 +197,24 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 			Name:       issuer.GetName(),
 			UID:        issuer.GetUID(),
 		}
+		if !newSigner {
+			// Delete existing secret if any. This is possible if there is
+			// a change in CA cert/key stored in enclave for an issuer which
+			// was ready.
+			if err := k8sutil.DeleteCASecret(ctx, r.Client, issuerSpec.SecretName, ns); err != nil {
+				issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", "Failed remove existing issuer secret: "+err.Error())
+				return ctrl.Result{RequeueAfter: time.Minute}, nil
+			}
+		}
 		if err := k8sutil.CreateCASecret(context.TODO(), r.Client, s.Certificate(), issuerSpec.SecretName, ns, ownerRef, issuerSpec.Labels); err != nil {
 			log.Info("failed to create issuer secret", "error", err)
-			issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", err.Error())
-			return ctrl.Result{RequeueAfter: time.Minute}, err
+			issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", "Failed create issuer secret: "+err.Error())
+			return ctrl.Result{RequeueAfter: time.Minute}, nil
 		}
 	}
-	issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionTrue, "Reconcile", "Success")
+	if ready.Status != v1.ConditionTrue {
+		issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionTrue, "Reconcile", "Success")
+	}
 	log.Info("Issuer Status Condition(s)", "conditions", issuerStatus.Conditions)
 
 	return ctrl.Result{}, nil
