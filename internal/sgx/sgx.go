@@ -293,7 +293,15 @@ func (ctx *SgxContext) GetSignerForName(name string) (*signer.Signer, error) {
 
 	s := ctx.signers.Get(name)
 	if s == nil {
-		return nil, keyprovider.ErrNotFound
+		/* If not found in the cache, check in the token */
+		key, cert, err := ctx.findSignerInToken(name)
+		if err != nil {
+			return nil, keyprovider.ErrNotFound
+		}
+		s := signer.NewSigner(name)
+		s.SetReady(key, cert)
+		ctx.signers.Add(s)
+		return s, nil
 	}
 
 	if err := s.Error(); err != nil {
