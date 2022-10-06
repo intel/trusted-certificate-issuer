@@ -423,8 +423,22 @@ func (ctx *SgxContext) provisionKey(signerName string, wrappedSWK []byte, wrappe
 		pkcs11.NewAttribute(pkcs11.CKA_EXTRACTABLE, false),
 		pkcs11.NewAttribute(pkcs11.CKA_ID, keyID),
 	}
-	aesKeyWrapMech := pkcs11.NewMechanism(pkcs11.CKM_AES_KEY_WRAP_PAD, nil)
-	prvKey, err := pCtx.UnwrapKey(ctx.p11Session, []*pkcs11.Mechanism{aesKeyWrapMech}, swkHandle, wrappedKey, attributeWPK)
+	var mechanism uint
+	var params interface{}
+	if ctx.cfg.KeyWrapMechanism == config.KeyWrapAesGCM {
+		// First 12 bytes are the nonce used for key encryption
+		gcmStandardNonceSize := 12
+		ivData := wrappedKey[:gcmStandardNonceSize]
+		wrappedKey = wrappedKey[gcmStandardNonceSize:]
+		mechanism = pkcs11.CKM_AES_GCM
+		params = pkcs11.NewGCMParams(ivData, nil, 128)
+	} else {
+		mechanism = pkcs11.CKM_AES_KEY_WRAP_PAD
+		params = nil
+	}
+	aesKeyWrapMech := pkcs11.NewMechanism(mechanism, params)
+
+	prvKey, err := pCtx.UnwrapKey(ctx.p11Session, []*pkcs11.Mechanism{aesKeyWrapMech}, swkHandle, wrappedKey[12:], attributeWPK)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unwrap private key: %v", err)
 	}

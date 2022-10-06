@@ -20,6 +20,11 @@ import (
 	"fmt"
 )
 
+const (
+	KeyWrapAesGCM        = "aes_gcm"
+	KeyWrapAesKeyWrapPad = "aes_key_wrap_pad"
+)
+
 type Config struct {
 	MetricsAddress     string
 	HealthProbeAddress string
@@ -28,15 +33,21 @@ type Config struct {
 	CSRFullCertChain   bool
 	RandomNonce        bool
 
-	HSMTokenLabel string
-	HSMUserPin    string
-	HSMSoPin      string
-	HSMConfigPath string
+	HSMTokenLabel    string
+	HSMUserPin       string
+	HSMSoPin         string
+	HSMConfigPath    string
+	KeyWrapMechanism string
 }
 
 func (cfg Config) Validate() error {
 	if cfg.HSMSoPin == "" || cfg.HSMUserPin == "" {
 		return fmt.Errorf("invalid HSM config: missing user/so pin")
+	}
+
+	if cfg.KeyWrapMechanism != KeyWrapAesGCM &&
+		cfg.KeyWrapMechanism != KeyWrapAesKeyWrapPad {
+		return fmt.Errorf("invalid key wrap mechanism '%s'", cfg.KeyWrapMechanism)
 	}
 
 	return nil
