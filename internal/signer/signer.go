@@ -17,8 +17,6 @@ const (
 	// New signer whose secrets are not available
 	// with the operator.
 	new SignerState = "New"
-	// Pending represents a pending attestation request for the signer.
-	pending SignerState = "Pending"
 	// Ready represents the signer secrets are available and
 	// is ready serving.
 	ready SignerState = "Ready"
@@ -56,17 +54,6 @@ func (s Signer) Ready() bool {
 	return s.state == ready
 }
 
-// Pending returns if the signer is in pending state
-func (s Signer) Pending() bool {
-	return s.state == pending
-}
-
-// AttestationCRName returns the name of the attestation request
-// name in case of a pending signer.
-func (s Signer) AttestationCRNameAndNamespace() (string, string) {
-	return s.req.name, s.req.namespace
-}
-
 func (s Signer) Failed() (bool, error) {
 	if s.state == failed {
 		return true, s.err
@@ -89,16 +76,6 @@ func (s *Signer) SetError(err error) {
 	if s.state != failed {
 		s.state = failed
 		s.err = err
-	}
-}
-
-func (s *Signer) SetPending(requestName, namespace string) {
-	if s.state != pending {
-		s.state = pending
-		s.req = attestationRequest{
-			name:      requestName,
-			namespace: namespace,
-		}
 	}
 }
 
@@ -137,19 +114,6 @@ func (sm *SignerMap) Get(name string) *Signer {
 	defer sm.lock.RUnlock()
 
 	return sm.signers[name]
-}
-
-func (sm *SignerMap) PendingSigners() []*Signer {
-	sm.lock.RLock()
-	defer sm.lock.RUnlock()
-
-	pending := []*Signer{}
-	for _, s := range sm.signers {
-		if ok := s.Pending(); ok {
-			pending = append(pending, s)
-		}
-	}
-	return pending
 }
 
 func (sm *SignerMap) UnInitializedSigners() []*Signer {
