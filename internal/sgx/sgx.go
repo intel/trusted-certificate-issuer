@@ -172,17 +172,6 @@ func (ctx *SgxContext) GetQuoteAndPublicKey(signerName string) ([]byte, interfac
 	return ctx.ensureQuote(signerName)
 }
 
-func (ctx *SgxContext) GetPendingSigners() []string {
-	if ctx == nil {
-		return []string{}
-	}
-	signers := []string{}
-	for _, signer := range ctx.signers.PendingSigners() {
-		signers = append(signers, signer.Name())
-	}
-	return signers
-}
-
 func (ctx *SgxContext) SignerNames() []string {
 	if ctx == nil {
 		return []string{}
