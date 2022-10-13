@@ -12,13 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+ARG SDK_VERSION="2.17.100.3"
+ARG DCAP_VERSION="1.14.100.3"
+
 # Build the manager binary
 FROM ubuntu:focal as builder
 
 ARG GO_VERSION="1.17.1"
-ARG SDK_VERSION="2.15.100.3"
+ARG SDK_VERSION
+ARG DCAP_VERSION
 ARG SGX_SDK_INSTALLER=sgx_linux_x64_sdk_${SDK_VERSION}.bin
-ARG DCAP_VERSION="1.12.100.3"
+
 ENV DEBIAN_FRONTEND=noninteractive
 # SGX prerequisites
 # hadolint ignore=DL3005,DL3008
@@ -69,7 +73,7 @@ WORKDIR /opt/intel
 
 # Install SGX SDK
 # hadolint ignore=DL4006
-RUN wget https://download.01.org/intel-sgx/sgx-linux/2.15/distro/ubuntu20.04-server/$SGX_SDK_INSTALLER \
+RUN wget https://download.01.org/intel-sgx/sgx-linux/2.17/distro/ubuntu20.04-server/$SGX_SDK_INSTALLER \
   && chmod +x  $SGX_SDK_INSTALLER \
   && echo "yes" | ./$SGX_SDK_INSTALLER \
   && rm $SGX_SDK_INSTALLER \
@@ -140,8 +144,8 @@ RUN mkdir -p /usr/local/share/package-licenses \
 ###
 FROM ubuntu:focal as runtime
 
-ARG SDK_VERSION="2.15.100.3"
-ARG DCAP_VERSION="1.12.100.3"
+ARG SDK_VERSION
+ARG DCAP_VERSION
 
 RUN apt-get update \
   && apt-get install -y wget gnupg \
