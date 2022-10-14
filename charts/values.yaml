@@ -1,7 +1,7 @@
 image:
   hub: intel
   name: trusted-certificate-issuer
-  tag: "latest"
+  tag: 0.3.0
   pullPolicy: Always
 
 # Any extra arguments for tcs-controller
