@@ -66,6 +66,7 @@ func main() {
 	flag.StringVar(&cfg.HSMUserPin, "user-pin", "", "PKCS11 token user pin.")
 	flag.StringVar(&cfg.HSMSoPin, "so-pin", "", "PKCS11 token so/admin pin.")
 	flag.BoolVar(&cfg.CSRFullCertChain, "csr-full-cert-chain", false, "Return full certificate chain in Kubernetes CSR certificate.")
+	flag.BoolVar(&cfg.RandomNonce, "use-random-nonce", true, "Use random nonce for SGX quote generation. Needed for KMRA version >= v2.2.")
 	flag.StringVar(&cfg.KeyWrapMechanism, "key-wrap-mechanism", config.KeyWrapAesKeyWrapPad, "CA private key wrapping mechanism to use. One of: 'aes_gcm' or 'ads_key_pad_wrap' ")
 
 	opts := zap.Options{}
