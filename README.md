@@ -75,7 +75,8 @@ $ export REGISTRY="localhost:5000" # docker registry to push the container image
 $ make docker-build
 $ make docker-push
 ```
-
+> **NOTE**: If you operate behind a corporate proxy, proxy settings can be passed in like \
+```make docker-build BUILD_ARGS="--build-arg http_proxy=someproxy --build-arg https_proxy=someproxy --build-arg no_proxy=some_list"```
 3. Deploy custom resource definitions (CRDs)
 
 ```sh

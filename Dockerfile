@@ -42,7 +42,7 @@ RUN apt-get update \
 # Add 01.org to apt for SGX packages
 # hadolint ignore=DL4006
   && echo "deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu focal main" >> /etc/apt/sources.list.d/intel-sgx.list \
-  && wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add - \
+  && wget -O - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add - \
 # Install SGX PSW
   && apt-get update \
   && apt-get install --no-install-recommends -y \
@@ -150,7 +150,7 @@ ARG DCAP_VERSION
 RUN apt-get update \
   && apt-get install -y wget gnupg \
   && echo "deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu focal main" >> /etc/apt/sources.list.d/intel-sgx.list \
-  && wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add - \
+  && wget -O - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add - \
   && sed -i '/deb-src/s/^# //' /etc/apt/sources.list \
   && apt-get update \
   && apt-get remove -y wget gnupg && apt-get autoremove -y \
