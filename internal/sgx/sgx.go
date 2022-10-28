@@ -435,7 +435,7 @@ func (ctx *SgxContext) provisionKey(signerName string, wrappedSWK []byte, wrappe
 	}
 	aesKeyWrapMech := pkcs11.NewMechanism(mechanism, params)
 
-	prvKey, err := pCtx.UnwrapKey(ctx.p11Session, []*pkcs11.Mechanism{aesKeyWrapMech}, swkHandle, wrappedKey[12:], attributeWPK)
+	prvKey, err := pCtx.UnwrapKey(ctx.p11Session, []*pkcs11.Mechanism{aesKeyWrapMech}, swkHandle, wrappedKey, attributeWPK)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unwrap private key: %v", err)
 	}
