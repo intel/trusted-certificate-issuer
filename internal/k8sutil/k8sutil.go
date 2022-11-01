@@ -14,8 +14,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/intel/trusted-certificate-issuer/api/v1alpha1"
-	tcsapi "github.com/intel/trusted-certificate-issuer/api/v1alpha1"
+	tcsapi "github.com/intel/trusted-certificate-issuer/api/v1alpha2"
+	"github.com/intel/trusted-certificate-issuer/internal/keyprovider"
 	"github.com/intel/trusted-certificate-issuer/internal/tlsutil"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -103,18 +103,18 @@ func QuoteAttestationDeliver(
 	req types.NamespacedName,
 	requestType tcsapi.QuoteAttestationRequestType,
 	signerName string,
-	quote []byte,
-	quotePubKey interface{},
+	quoteInfo *keyprovider.QuoteInfo,
 	tokenLabel string,
 	ownerRef *metav1.OwnerReference,
 	labels map[string]string) error {
 
-	encPubKey, err := tlsutil.EncodePublicKey(quotePubKey)
+	encPubKey, err := tlsutil.EncodePublicKey(quoteInfo.PublicKey)
 	if err != nil {
 		return err
 	}
 
-	encQuote := base64.StdEncoding.EncodeToString(quote)
+	encQuote := base64.StdEncoding.EncodeToString(quoteInfo.Quote)
+	encNonce := base64.StdEncoding.EncodeToString(quoteInfo.Nonce)
 
 	if req.Namespace == "" {
 		req.Namespace = GetNamespace()
@@ -130,9 +130,10 @@ func QuoteAttestationDeliver(
 			Labels:     labels,
 			Finalizers: []string{TCSFinalizer},
 		},
-		Spec: v1alpha1.QuoteAttestationSpec{
+		Spec: tcsapi.QuoteAttestationSpec{
 			Type:         requestType,
 			Quote:        []byte(encQuote),
+			Nonce:        []byte(encNonce),
 			QuoteVersion: tcsapi.ECDSAQuoteVersion3,
 			SignerName:   signerName,
 			ServiceID:    tokenLabel,
@@ -148,7 +149,7 @@ func QuoteAttestationDeliver(
 	if err != nil {
 		if errors.IsAlreadyExists(err) {
 			if err = QuoteAttestationDelete(ctx, c, req); err != nil {
-				return fmt.Errorf("failed to delete existing QuoteAttestaion CR with name '%s'. Clear this before redeploy the operator: %v", req.Name, err)
+				return fmt.Errorf("failed to delete existing QuoteAttestation CR with name '%s'. Clear this before redeploy the operator: %v", req.Name, err)
 			}
 
 			err = c.Create(ctx, sgxAttestation)
