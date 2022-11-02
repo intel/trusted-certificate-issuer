@@ -36,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	tcsapi "github.com/intel/trusted-certificate-issuer/api/v1alpha1"
+	"github.com/intel/trusted-certificate-issuer/api/v1alpha2"
 	"github.com/intel/trusted-certificate-issuer/internal/k8sutil"
 	"github.com/intel/trusted-certificate-issuer/internal/keyprovider"
 	"github.com/intel/trusted-certificate-issuer/internal/signer"
@@ -118,7 +119,7 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 				return ctrl.Result{Requeue: false}, nil
 			}
 		} else {
-			qa := &tcsapi.QuoteAttestation{}
+			qa := &v1alpha2.QuoteAttestation{}
 			qaReq := req.NamespacedName
 			if qaReq.Namespace == "" {
 				qaReq.Namespace = k8sutil.GetNamespace()
@@ -126,7 +127,7 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 			if err := r.Get(ctx, qaReq, qa); err != nil {
 				if apierrors.IsNotFound(err) {
 					// means no quoteattestation object, create new one
-					quote, publickey, err := r.KeyProvider.GetQuoteAndPublicKey(signerName)
+					quoteInfo, err := r.KeyProvider.GetQuote(signerName)
 					if err != nil {
 						log.Info("Error preparing SGX quote", "error", err)
 						issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", fmt.Sprintf("failed to get sgx quote: %v", err.Error()))
@@ -139,7 +140,7 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 						UID:        issuer.GetUID(),
 					}
 					log.Info("Initiating quote attestation", "signer", signerName)
-					if err := k8sutil.QuoteAttestationDeliver(ctx, r.Client, qaReq, tcsapi.RequestTypeKeyProvisioning, signerName, quote, publickey, "", ownerRef, issuerSpec.Labels); err != nil {
+					if err := k8sutil.QuoteAttestationDeliver(ctx, r.Client, qaReq, tcsapi.RequestTypeKeyProvisioning, signerName, quoteInfo, "", ownerRef, issuerSpec.Labels); err != nil {
 						log.Error(err, "Error while creating quote attestation")
 						issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", fmt.Sprintf("failed to initiate quote attestation: %v", err.Error()))
 						return ctrl.Result{Requeue: true}, nil
@@ -152,7 +153,7 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 				issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", fmt.Sprintf("failed to get quote attestation status: %v", err.Error()))
 				return ctrl.Result{Requeue: true}, nil
 			}
-			status := qa.Status.GetCondition(tcsapi.ConditionReady)
+			status := qa.Status.GetCondition(v1alpha2.ConditionReady)
 			if status == nil || status.Status == v1.ConditionUnknown {
 				// Still not ready, retry later
 				issuerStatus.SetCondition(tcsapi.IssuerConditionReady, v1.ConditionFalse, "Reconcile", "Waiting for key provisioning")
@@ -259,7 +260,7 @@ func (r *IssuerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				r.Log.Info("Failed to update finalizer on Secret", "issuer", signerName, "error", err)
 			}
 
-			qa := &tcsapi.QuoteAttestation{
+			qa := &v1alpha2.QuoteAttestation{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      e.Object.GetName(),
 					Namespace: ns,

@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	tcsapi "github.com/intel/trusted-certificate-issuer/api/v1alpha1"
+	"github.com/intel/trusted-certificate-issuer/api/v1alpha2"
 	"github.com/intel/trusted-certificate-issuer/controllers"
 	"github.com/intel/trusted-certificate-issuer/internal/config"
 	"github.com/intel/trusted-certificate-issuer/internal/sgx"
@@ -49,6 +50,7 @@ var scheme = runtime.NewScheme()
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(tcsapi.AddToScheme(scheme))
+	utilruntime.Must(v1alpha2.AddToScheme(scheme))
 	utilruntime.Must(cmapi.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }

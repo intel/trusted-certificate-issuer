@@ -27,6 +27,7 @@ import (
 
 	tcsapi "github.com/intel/trusted-certificate-issuer/api/v1alpha1"
 	"github.com/intel/trusted-certificate-issuer/internal/k8sutil"
+	"github.com/intel/trusted-certificate-issuer/internal/keyprovider"
 	"github.com/intel/trusted-certificate-issuer/internal/sgx"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -166,6 +167,10 @@ func ValidateCSRQuote(ctx context.Context, c client.Client, obj client.Object, c
 		if err != nil {
 			return false, false, fmt.Errorf("incomplete information to verify quote from csr extensions: %v", err)
 		}
+		quoteInfo := &keyprovider.QuoteInfo{
+			Quote:     csrquote,
+			PublicKey: publickey,
+		}
 
 		ownerRef := &metav1.OwnerReference{
 			APIVersion: obj.GetObjectKind().GroupVersionKind().GroupVersion().String(),
@@ -173,7 +178,7 @@ func ValidateCSRQuote(ctx context.Context, c client.Client, obj client.Object, c
 			Name:       obj.GetName(),
 			UID:        obj.GetUID(),
 		}
-		if err := k8sutil.QuoteAttestationDeliver(ctx, c, nsName, tcsapi.RequestTypeQuoteAttestation, signer, csrquote, publickey, "", ownerRef, nil); err != nil {
+		if err := k8sutil.QuoteAttestationDeliver(ctx, c, nsName, tcsapi.RequestTypeQuoteAttestation, signer, quoteInfo, "", ownerRef, nil); err != nil {
 			return false, true, fmt.Errorf("failed to initiate quote attestation: %v", err)
 		}
 		return false, true, nil

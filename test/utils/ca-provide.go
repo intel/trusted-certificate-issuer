@@ -107,10 +107,14 @@ func (kp *fakeKeyProvider) ProvisionSigner(signerName string, base64Key []byte, 
 	return s, nil
 }
 
-func (kp *fakeKeyProvider) GetQuoteAndPublicKey(string) ([]byte, interface{}, error) {
+func (kp *fakeKeyProvider) GetQuote(string) (*keyprovider.QuoteInfo, error) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return []byte("DummyQuote"), &key.PublicKey, nil
+	return &keyprovider.QuoteInfo{
+		Quote:     []byte("DummyQuote"),
+		PublicKey: &key.PublicKey,
+		Nonce:     []byte{},
+	}, nil
 }

@@ -16,6 +16,7 @@ limitations under the License.
 package keyprovider
 
 import (
+	"crypto/rsa"
 	"crypto/x509"
 	"errors"
 
@@ -23,6 +24,12 @@ import (
 )
 
 var ErrNotFound = errors.New("NotFound")
+
+type QuoteInfo struct {
+	Quote     []byte
+	Nonce     []byte
+	PublicKey *rsa.PublicKey
+}
 
 type KeyProvider interface {
 	// SignerNames lists all the valid signer names, the list
@@ -46,6 +53,6 @@ type KeyProvider interface {
 	// The key must be encrypted with the given publick-key used while quote-generation.
 	ProvisionSigner(signerName string, encryptedKey []byte, cert *x509.Certificate) (*signer.Signer, error)
 
-	// GetQuoteAndPublicKey returns SGX quote and the publickey used for generating the quote
-	GetQuoteAndPublicKey(signerName string) ([]byte, interface{}, error)
+	// GetQuote returns the SGX quote generated for the signerName
+	GetQuote(signerName string) (*QuoteInfo, error)
 }

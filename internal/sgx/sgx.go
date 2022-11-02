@@ -90,13 +90,11 @@ const (
 )
 
 type quoteInfo struct {
+	*keyprovider.QuoteInfo
 	// private key used for quote generation
 	prvKeyHandle pkcs11.ObjectHandle
 	// private key used for quote generation
 	pubKeyHandle pkcs11.ObjectHandle
-	// generated quote
-	ctkQuote  []byte
-	publicKey *rsa.PublicKey
 }
 
 type SgxContext struct {
@@ -164,9 +162,9 @@ func (ctx *SgxContext) TokenLabel() (string, error) {
 	return ctx.cfg.HSMTokenLabel, nil
 }
 
-func (ctx *SgxContext) GetQuoteAndPublicKey(signerName string) ([]byte, interface{}, error) {
+func (ctx *SgxContext) GetQuote(signerName string) (*keyprovider.QuoteInfo, error) {
 	if ctx == nil {
-		return nil, nil, fmt.Errorf("invalid SGX context")
+		return nil, fmt.Errorf("invalid SGX context")
 	}
 
 	return ctx.ensureQuote(signerName)
@@ -568,37 +566,40 @@ func (ctx *SgxContext) initializeSigner(s *signer.Signer) (err error) {
 	return nil
 }
 
-func (ctx *SgxContext) ensureQuote(signerName string) ([]byte, interface{}, error) {
+func (ctx *SgxContext) ensureQuote(signerName string) (*keyprovider.QuoteInfo, error) {
 	ctx.ctxLock.Lock()
 	defer ctx.ctxLock.Unlock()
 
 	if info, ok := ctx.quotes[signerName]; ok {
-		return info.ctkQuote, info.publicKey, nil
+		return info.QuoteInfo, nil
 	}
 	ctx.log.Info("Generating quote keypair...", "forSigner", signerName)
 	pubHandle, privHandle, err := generateP11KeyPair(ctx.p11Ctx, ctx.p11Session)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	ctx.log.Info("Generating Quote...")
-	quote, pubKey, err := ctx.generateQuote(pubHandle)
+	quote, nonce, pubKey, err := ctx.generateQuote(pubHandle)
 	if err != nil {
 		ctx.p11Ctx.DestroyObject(ctx.p11Session, pubHandle)
 		ctx.p11Ctx.DestroyObject(ctx.p11Session, privHandle)
-		return nil, nil, err
+		return nil, err
 	}
 	info := &quoteInfo{
+		QuoteInfo: &keyprovider.QuoteInfo{
+			Quote:     quote,
+			Nonce:     nonce,
+			PublicKey: pubKey,
+		},
 		prvKeyHandle: privHandle,
 		pubKeyHandle: pubHandle,
-		ctkQuote:     quote,
-		publicKey:    pubKey,
 	}
 	ctx.quotes[signerName] = info
-	return info.ctkQuote, info.publicKey, nil
+	return info.QuoteInfo, nil
 }
 
-func (ctx *SgxContext) generateQuote(pubKey pkcs11.ObjectHandle) ([]byte, *rsa.PublicKey, error) {
+func (ctx *SgxContext) generateQuote(pubKey pkcs11.ObjectHandle) ([]byte, []byte, *rsa.PublicKey, error) {
 	quoteParams := C.CK_ECDSA_QUOTE_RSA_PUBLIC_KEY_PARAMS{
 		qlPolicy: C.SGX_QL_PERSISTENT,
 	}
@@ -610,11 +611,11 @@ func (ctx *SgxContext) generateQuote(pubKey pkcs11.ObjectHandle) ([]byte, *rsa.P
 		// --------------------------------------
 		reader, err := ctx.cryptoCtx.NewRandomReader()
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to initialize random reader: %v", err)
+			return nil, nil, nil, fmt.Errorf("failed to initialize random reader: %v", err)
 		}
 		randBytes, err := generateKeyID(reader, C.NONCE_LENGTH-4)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		now := uint32(time.Now().Unix())
 		timestamp := (*[4]byte)(unsafe.Pointer(&now))[:]
@@ -627,26 +628,27 @@ func (ctx *SgxContext) generateQuote(pubKey pkcs11.ObjectHandle) ([]byte, *rsa.P
 			quoteParams.nonce[i] = C.CK_BYTE(i)
 		}
 	}
+	nonce := C.GoBytes(unsafe.Pointer(&quoteParams.nonce[0]), C.NONCE_LENGTH)
 
 	params := C.GoBytes(unsafe.Pointer(&quoteParams), C.int(unsafe.Sizeof(quoteParams)))
 	m := pkcs11.NewMechanism(C.CKM_EXPORT_ECDSA_QUOTE_RSA_PUBLIC_KEY, params)
 
 	quotePubKey, err := ctx.p11Ctx.WrapKey(ctx.p11Session, []*pkcs11.Mechanism{m}, pkcs11.ObjectHandle(0), pubKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	offset := uint64(C.quote_offset(*(*C.CK_BYTE_PTR)(unsafe.Pointer(&quotePubKey))))
 	if offset <= 0 || offset >= uint64(len(quotePubKey)) {
-		return nil, nil, fmt.Errorf("quote generation failure: invalid quote")
+		return nil, nil, nil, fmt.Errorf("quote generation failure: invalid quote")
 	}
 
 	publicKey, err := ParseQuotePublickey(quotePubKey[:offset])
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse quote public key: %v", err)
+		return nil, nil, nil, fmt.Errorf("failed to parse quote public key: %v", err)
 	}
 
-	return quotePubKey[offset:], publicKey, nil
+	return quotePubKey[offset:], nonce, publicKey, nil
 }
 
 // ParseQuotePublickey reconstruct the rsa public key
