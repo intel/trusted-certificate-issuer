@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 // Package v1alpha1 contains API Schema definitions for the tcs.intel.com v1 API group
-//+kubebuilder:object:generate=true
-//+groupName=tcs.intel.com
+// +kubebuilder:object:generate=true
+// +groupName=tcs.intel.com
 package v1alpha1
 
 import (

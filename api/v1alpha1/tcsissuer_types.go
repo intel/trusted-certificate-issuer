@@ -47,12 +47,12 @@ type TCSIssuerStatus struct {
 	Conditions []TCSIssuerCondition `json:"conditions,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="Age",type="date",JSONPath=`.metadata.creationTimestamp`
-//+kubebuilder:printcolumn:name="Ready",type="string",JSONPath=`.status.conditions[?(@.type=='Ready')].status`
-//+kubebuilder:printcolumn:name="Reason",type="string",JSONPath=`.status.conditions[?(@.type=='Ready')].reason`
-//+kubebuilder:printcolumn:name="Message",type="string",JSONPath=`.status.conditions[?(@.type=='Ready')].message`
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=`.metadata.creationTimestamp`
+// +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=`.status.conditions[?(@.type=='Ready')].status`
+// +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=`.status.conditions[?(@.type=='Ready')].reason`
+// +kubebuilder:printcolumn:name="Message",type="string",JSONPath=`.status.conditions[?(@.type=='Ready')].message`
 // TCSIssuer is the Schema for the issuers API
 type TCSIssuer struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -62,7 +62,7 @@ type TCSIssuer struct {
 	Status TCSIssuerStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 // TCSIssuerList contains a list of TCSIssuer
 type TCSIssuerList struct {
 	metav1.TypeMeta `json:",inline"`

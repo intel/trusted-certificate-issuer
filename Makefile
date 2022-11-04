@@ -40,7 +40,7 @@ help: ## Display this help.
 ##@ Development
 
 vendor:
-	go mod tidy -compat=1.17
+	go mod tidy
 	go mod vendor
 
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.

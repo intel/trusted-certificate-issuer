@@ -18,7 +18,7 @@ ARG DCAP_VERSION="1.14.100.3"
 # Build the manager binary
 FROM ubuntu:focal as builder
 
-ARG GO_VERSION="1.17.1"
+ARG GO_VERSION="1.19.3"
 ARG SDK_VERSION
 ARG DCAP_VERSION
 ARG SGX_SDK_INSTALLER=sgx_linux_x64_sdk_${SDK_VERSION}.bin
