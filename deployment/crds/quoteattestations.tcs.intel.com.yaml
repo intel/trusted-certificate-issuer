@@ -50,16 +50,16 @@ spec:
               secretName:
                 description: SecretName is name of the Secret object (in the same
                   namespace) to keep the wrapped on secrets (only needed for KeyProvisioning
-                  request type) which is an opeque type. The secret data must contain
+                  request type) which is an opaque type. The secret data must contain
                   two map elements `tls.key` and `tls.cert` and the values are the
                   base64 encoded encrypted CA key and base64 encoded x509(PEM encoded)
                   certificate. This must be added only after a successful quote validation
                   and before updating the status condition.
                 type: string
               serviceId:
-                description: // ServiceID holds the unique identifier(name?) that
-                  represents service which is requesting for the secret. To be decided
-                  wether this should be SPIFFE trust domain!
+                description: ServiceID holds the unique identifier(name?) that represents
+                  service which is requesting for the secret. To be decided whether
+                  this should be SPIFFE trust domain!
                 type: string
               signerName:
                 description: SignerName refers to the Kubernetes CSR signer name used
@@ -107,7 +107,7 @@ spec:
                       type: string
                     type:
                       description: type of the condition. One of QuoteVerified, CASecretReady
-                        adn Ready
+                        and Ready
                       type: string
                   type: object
                 type: array
@@ -159,16 +159,16 @@ spec:
               secretName:
                 description: SecretName is name of the Secret object (in the same
                   namespace) to keep the wrapped on secrets (only needed for KeyProvisioning
-                  request type) which is an opeque type. The secret data must contain
+                  request type) which is an opaque type. The secret data must contain
                   two map elements `tls.key` and `tls.cert` and the values are the
                   base64 encoded encrypted CA key and base64 encoded x509(PEM encoded)
                   certificate. This must be added only after a successful quote validation
                   and before updating the status condition.
                 type: string
               serviceId:
-                description: // ServiceID holds the unique identifier(name?) that
-                  represents service which is requesting for the secret. To be decided
-                  wether this should be SPIFFE trust domain!
+                description: ServiceID holds the unique identifier(name?) that represents
+                  service which is requesting for the secret. To be decided whether
+                  this should be SPIFFE trust domain!
                 type: string
               signerName:
                 description: SignerName refers to the Kubernetes CSR signer name used
@@ -216,7 +216,7 @@ spec:
                       type: string
                     type:
                       description: type of the condition. One of QuoteVerified, CASecretReady
-                        adn Ready
+                        and Ready
                       type: string
                   type: object
                 type: array

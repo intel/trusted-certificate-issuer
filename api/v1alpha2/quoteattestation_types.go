@@ -84,9 +84,9 @@ type QuoteAttestationSpec struct {
 	// +kubebuilder:listType=atomic
 	Nonce []byte `json:"nonce,omitempty"`
 
-	//// ServiceID holds the unique identifier(name?) that represents service
+	// ServiceID holds the unique identifier(name?) that represents service
 	// which is requesting for the secret.
-	// To be decided wether this should be SPIFFE trust domain!
+	// To be decided whether this should be SPIFFE trust domain!
 	ServiceID string `json:"serviceId"`
 
 	// PublicKey for encrypting the secret, hash is part of the quote data,
@@ -100,7 +100,7 @@ type QuoteAttestationSpec struct {
 
 	// SecretName is name of the Secret object (in the same namespace)
 	// to keep the wrapped on secrets (only needed for KeyProvisioning request type)
-	// which is an opeque type. The secret data must contain two map elements `tls.key`
+	// which is an opaque type. The secret data must contain two map elements `tls.key`
 	// and `tls.cert` and the values are the base64 encoded encrypted CA key and
 	// base64 encoded x509(PEM encoded) certificate. This must be added only after
 	// a successful quote validation and before updating the status condition.
@@ -110,7 +110,7 @@ type QuoteAttestationSpec struct {
 
 // QuoteAttestationCondition describes a condition of a QuoteAttestation object
 type QuoteAttestationCondition struct {
-	// type of the condition. One of QuoteVerified, CASecretReady adn Ready
+	// type of the condition. One of QuoteVerified, CASecretReady and Ready
 	Type ConditionType `json:"type,omitempty"`
 	// Status indicates the status of a condition (true, false, or unknown).
 	Status v1.ConditionStatus `json:"status,omitempty"`
