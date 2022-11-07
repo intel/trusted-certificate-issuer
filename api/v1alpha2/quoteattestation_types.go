@@ -133,9 +133,9 @@ type QuoteAttestationStatus struct {
 	Conditions []QuoteAttestationCondition `json:"conditions,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:storageversion
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:storageversion
 // QuoteAttestation is the Schema for the quote attestation API
 type QuoteAttestation struct {
 	metav1.TypeMeta   `json:",inline"`

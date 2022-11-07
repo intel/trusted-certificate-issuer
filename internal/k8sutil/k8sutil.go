@@ -179,9 +179,12 @@ func QuoteAttestationDelete(ctx context.Context, c client.Client, req types.Name
 }
 
 // Converts signer name to valid Kubernetes object name and nanespace
-//  Ex:- intel.com/tcs -> tcs.intel.com, ""
-///      tcsissuer.tcs.intel.com/sandbox.sgx-ca -> sgx-ca.tcs.intel.com, sandbox
-//       tcsclusterissuer.tcs.intel.com/sgx-ca1 -> sgx-ca1.tcsclusterissuer.intel.tcs.com, ""
+//
+//	Ex:- intel.com/tcs -> tcs.intel.com, ""
+//
+// /      tcsissuer.tcs.intel.com/sandbox.sgx-ca -> sgx-ca.tcs.intel.com, sandbox
+//
+//	tcsclusterissuer.tcs.intel.com/sgx-ca1 -> sgx-ca1.tcsclusterissuer.intel.tcs.com, ""
 func SignerNameToResourceNameAndNamespace(signerName string) (string, string) {
 	slices := strings.SplitN(signerName, "/", 2)
 	if len(slices) == 2 {
