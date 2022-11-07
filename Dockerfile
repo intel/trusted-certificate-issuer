@@ -29,9 +29,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
   && apt-get install --no-install-recommends -y \
     ca-certificates \
-    curl \
-    linux-tools-generic \
     wget \
+    linux-tools-generic \
     unzip \
     protobuf-compiler \
     libprotobuf-dev \
@@ -73,7 +72,7 @@ WORKDIR /opt/intel
 
 # Install SGX SDK
 # hadolint ignore=DL4006
-RUN wget https://download.01.org/intel-sgx/sgx-linux/2.17/distro/ubuntu20.04-server/$SGX_SDK_INSTALLER \
+RUN wget -O ${SGX_SDK_INSTALLER} https://download.01.org/intel-sgx/sgx-linux/2.17/distro/ubuntu20.04-server/$SGX_SDK_INSTALLER \
   && chmod +x  $SGX_SDK_INSTALLER \
   && echo "yes" | ./$SGX_SDK_INSTALLER \
   && rm $SGX_SDK_INSTALLER \
@@ -90,10 +89,10 @@ RUN set -x && apt-get update \
     autotools-dev libc6-dev \
     libtool build-essential \
     opensc sudo \
-    automake \
+    automake wget \
   && apt-get clean \
   && git clone https://github.com/intel/crypto-api-toolkit.git \
-  && cd /opt/intel/crypto-api-toolkit \
+  && (cd /opt/intel/crypto-api-toolkit \
   && git checkout ${CTK_TAG} -b v${CTK_TAG} \
   # disable building tests
   && sed -i -e 's;test;;g' ./src/Makefile.am \
@@ -101,7 +100,7 @@ RUN set -x && apt-get update \
   && sed -i -e '/libp11SgxEnclave.signed.so/d' ./src/p11/trusted/Makefile.am \
   && ./autogen.sh \
   && ./configure --enable-dcap --with-token-path=/home/tcs-issuer \
-  && make && make install
+  && make && make install)
 
 # Sign the enclave with custom config.
 COPY enclave-config enclave-config
@@ -117,7 +116,7 @@ RUN set -x; cd /opt/intel/crypto-api-toolkit/src/p11/trusted \
   && echo "----- Generated signed enclave! ----"
 
 WORKDIR /workspace
-RUN curl -L https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz | tar -zxf - -C / \
+RUN wget -O - https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz | tar -zxf - -C / \
   && mkdir -p /usr/local/bin/ \
   && for i in /go/bin/*; do ln -s $i /usr/local/bin/; done
 
@@ -185,7 +184,7 @@ COPY --from=runtime /usr/share/doc /tmp/runtime-doc
 RUN sed -i '/deb-src/s/^# //' /etc/apt/sources.list \
   && apt-get update \
   # Install sources of GPL packages
-  && mkdir /usr/local/share/package-sources && cd /usr/local/share/package-sources \
+  && mkdir /usr/local/share/package-sources && ( cd /usr/local/share/package-sources \
   && grep ^Get: /usr/local/share/package-install.log | grep -v sgx | cut -d ' ' -f 5,7 | \
       while read pkg version; do \
        if ! [ -f /tmp/runtime-doc/$pkg/copyright ]; then \
@@ -199,7 +198,7 @@ RUN sed -i '/deb-src/s/^# //' /etc/apt/sources.list \
           echo "INFO: not downloading source of $pkg, found no copyleft license"; \
        fi; \
       done \
-  && apt-get clean
+  && apt-get clean)
 
 ###
 # Final trusted-certificate-issuer Image

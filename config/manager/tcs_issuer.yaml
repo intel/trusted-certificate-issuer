@@ -26,11 +26,17 @@ spec:
     spec:
       initContainers:
       - name: init
-        image: busybox
+        image: busybox:1.34.1 #latest stable version
         imagePullPolicy: IfNotPresent
         ## Set appropriate permissions to tokens directory.
         ## The tcs-issuer container runs with UID 5000(tcs-issuer username).
-        command: ["/bin/chown", "-R", "5000:5000", "/home/tcs-issuer/tokens"]
+        command: ["/bin/chown", "5000:5000", "/home/tcs-issuer/tokens"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ "ALL" ]
+            add: [ "CAP_CHOWN" ]
         volumeMounts:
         - mountPath: /home/tcs-issuer/tokens
           name: tokens-dir
@@ -46,12 +52,15 @@ spec:
         - --user-pin=$USER_PIN
         - --so-pin=$SO_PIN
         - --use-random-nonce=true # Disable this if using KMRA version < 2.2
-        image: tcs-issuer
+        image: tcs-issuer:0.0.0
         imagePullPolicy: Always
         name: tcs-issuer
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop: [ "ALL" ]
         livenessProbe:
           httpGet:
             path: /healthz
