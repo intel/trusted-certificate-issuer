@@ -510,8 +510,8 @@ func (ctx *SgxContext) initializeToken() error {
 		"--init-pin", "--slot-index", fmt.Sprintf("%d", 0), "--label", ctx.cfg.HSMTokenLabel,
 		"--pin", ctx.cfg.HSMUserPin, "--so-pin", ctx.cfg.HSMSoPin)
 
-	if err := cmd.Run(); err != nil {
-		ctx.log.Info("command", cmd.Args, "output", cmd.Stdout)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		ctx.log.Info("Failed token initialize", "command", cmd.Args, "output", output)
 		return fmt.Errorf("failed to initialize token: %v", err)
 	}
 
