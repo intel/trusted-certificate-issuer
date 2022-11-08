@@ -334,7 +334,7 @@ spec:
             secretKeyRef:
               key: sopin
               name: tcs-issuer-pkcs11-conf
-        image: docker.io/intel/trusted-certificate-issuer:latest
+        image: docker.io/intel/trusted-certificate-issuer:0.4.0
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
