@@ -130,6 +130,10 @@ type QuoteAttestationStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:openapi-gen=true
+
 // QuoteAttestation is the Schema for the quoteattestations API
 type QuoteAttestation struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -140,6 +144,8 @@ type QuoteAttestation struct {
 }
 
 //+kubebuilder:object:root=true
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // QuoteAttestationList contains a list of QuoteAttestation
 type QuoteAttestationList struct {
