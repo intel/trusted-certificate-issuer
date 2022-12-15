@@ -17,7 +17,6 @@ package controllers
 
 import (
 	"context"
-	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
@@ -129,6 +128,7 @@ var (
 	// FIXME (avalluri): These identifiers needs to be in sync with
 	// values defined in intel/Istio:
 	// https://github.com/intel/istio/blob/release-1.15-intel/security/pkg/nodeagent/sds/sgxconfig.go#L57-L58
+	// https://github.com/intel/trusted-certificate-issuer/issues/70
 	//
 	// oidQuote represents the ASN.1 OBJECT IDENTIFIER for the SGX quote
 	// and quote validation result.
@@ -136,6 +136,9 @@ var (
 	// oidQuotePublicKey represents the ASN.1 OBJECT IDENTIFIER for the
 	// public key used for generating the SGX quote.
 	oidQuotePublicKey = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 54392, 5, 1284}
+	// oidQuoteNonce represents the ASN.1 OBJECT IDENTIFIER for the
+	// nonce used for generating the SGX quote.
+	oidQuoteNonce = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 54392, 5, 1547}
 )
 
 // CSRNeedsQuoteVerification checks if QuoteValidation extension set in the
@@ -163,13 +166,9 @@ func ValidateCSRQuote(ctx context.Context, c client.Client, obj client.Object, c
 	qa := &tcsapi.QuoteAttestation{}
 	if err := c.Get(ctx, nsName, qa); err != nil && errors.IsNotFound(err) {
 		// means no quoteattestation object, create new one
-		csrquote, publickey, err := getQuoteAndPublicKeyFromCSR(csr.Extensions)
+		quoteInfo, err := getQuoteAndPublicKeyFromCSR(csr.Extensions)
 		if err != nil {
 			return false, false, fmt.Errorf("incomplete information to verify quote from csr extensions: %v", err)
-		}
-		quoteInfo := &keyprovider.QuoteInfo{
-			Quote:     csrquote,
-			PublicKey: publickey,
 		}
 
 		ownerRef := &metav1.OwnerReference{
@@ -196,7 +195,7 @@ func ValidateCSRQuote(ctx context.Context, c client.Client, obj client.Object, c
 	return status.Status == v1.ConditionTrue, false, nil
 }
 
-func getQuoteAndPublicKeyFromCSR(extensions []pkix.Extension) ([]byte, *rsa.PublicKey, error) {
+func getQuoteAndPublicKeyFromCSR(extensions []pkix.Extension) (*keyprovider.QuoteInfo, error) {
 	decodeExtensionValue := func(value []byte) ([]byte, error) {
 		strValue := ""
 		if _, err := asn1.Unmarshal(value, &strValue); err != nil {
@@ -204,33 +203,42 @@ func getQuoteAndPublicKeyFromCSR(extensions []pkix.Extension) ([]byte, *rsa.Publ
 		}
 		return base64.StdEncoding.DecodeString(strValue)
 	}
-	var encPublickey, quote []byte
-	var err error
-	var publickey *rsa.PublicKey
+	var quoteInfo keyprovider.QuoteInfo
 	for _, ext := range extensions {
 		if ext.Id.Equal(oidQuote) {
-			quote, err = decodeExtensionValue(ext.Value)
+			quote, err := decodeExtensionValue(ext.Value)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to unmarshal SGX quote extension value: %v", err)
+				return nil, fmt.Errorf("failed to unmarshal SGX quote extension value: %v", err)
 			}
+			quoteInfo.Quote = quote
 		} else if ext.Id.Equal(oidQuotePublicKey) {
-			encPublickey, err = decodeExtensionValue(ext.Value)
+			encPublickey, err := decodeExtensionValue(ext.Value)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to unmarshal SGX quote extension value: %v", err)
+				return nil, fmt.Errorf("failed to unmarshal SGX quote extension value: %v", err)
 			}
-			publickey, err = sgx.ParseQuotePublickey(encPublickey)
+			key, err := sgx.ParseQuotePublickey(encPublickey)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to parse SGX quote publickey value: %v", err)
+				return nil, fmt.Errorf("failed to parse SGX quote publickey value: %v", err)
 			}
+			quoteInfo.PublicKey = key
+		} else if ext.Id.Equal(oidQuoteNonce) {
+			nonce, err := decodeExtensionValue(ext.Value)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse SGX quote publickey value: %v", err)
+			}
+			quoteInfo.Nonce = nonce
 		}
 	}
-	if quote == nil {
-		return nil, nil, fmt.Errorf("missing quote extension")
+	if quoteInfo.Quote == nil {
+		return nil, fmt.Errorf("missing quote extension")
 	}
-	if publickey == nil {
-		return nil, nil, fmt.Errorf("missing quote public key extension")
+	if quoteInfo.PublicKey == nil {
+		return nil, fmt.Errorf("missing quote public key extension")
 	}
-	return quote, publickey, nil
+	if quoteInfo.Nonce == nil {
+		return nil, fmt.Errorf("missing quote nonce extension")
+	}
+	return &quoteInfo, nil
 }
 
 func GetQuoteVerifiedExtension(message string) (*pkix.Extension, error) {
