@@ -47,7 +47,7 @@ Prerequisites for building and running Trusted Certificate Service:
 
 ### Installing with Helm 
 
-If you want to use Helm to install TCS see the document [here](./docs/helm.md).
+If you want to use Helm to install TCS see the document [here](https://github.com/intel/helm-charts/tree/main/charts/trusted-certificate-issuer).
 
 ### Installing with source code
 
