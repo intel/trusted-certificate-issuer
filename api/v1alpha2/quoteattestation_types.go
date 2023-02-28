@@ -133,13 +133,12 @@ type QuoteAttestationStatus struct {
 	Conditions []QuoteAttestationCondition `json:"conditions,omitempty"`
 }
 
-// +kubebuilder:object:root=true
-// +kubebuilder:subresource:status
-// +kubebuilder:storageversion
-
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +k8s:openapi-gen=true
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:storageversion
 
 // QuoteAttestation is the Schema for the quote attestation API
 type QuoteAttestation struct {
@@ -151,7 +150,6 @@ type QuoteAttestation struct {
 }
 
 //+kubebuilder:object:root=true
-
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // QuoteAttestationList contains a list of QuoteAttestation
