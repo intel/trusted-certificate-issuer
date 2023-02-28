@@ -27,7 +27,7 @@ import (
 	tcsapi "github.com/intel/trusted-certificate-issuer/api/v1alpha1"
 	"github.com/intel/trusted-certificate-issuer/internal/k8sutil"
 	"github.com/intel/trusted-certificate-issuer/internal/keyprovider"
-	"github.com/intel/trusted-certificate-issuer/internal/sgx"
+	"github.com/intel/trusted-certificate-issuer/internal/sgxutils"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -216,7 +216,7 @@ func getQuoteAndPublicKeyFromCSR(extensions []pkix.Extension) (*keyprovider.Quot
 			if err != nil {
 				return nil, fmt.Errorf("failed to unmarshal SGX quote extension value: %v", err)
 			}
-			key, err := sgx.ParseQuotePublickey(encPublickey)
+			key, err := sgxutils.ParseQuotePublickey(encPublickey)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse SGX quote publickey value: %v", err)
 			}

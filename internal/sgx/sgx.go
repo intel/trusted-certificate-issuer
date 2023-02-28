@@ -10,46 +10,7 @@ package sgx
 #cgo LDFLAGS: -lp11sgx -L /usr/local/lib
 
 #include <cryptoki.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <sgx_pce.h>
 #include <QuoteGeneration.h>
-
-CK_ULONG quote_offset(CK_BYTE_PTR bytes) {
-	CK_RSA_PUBLIC_KEY_PARAMS* params = (CK_RSA_PUBLIC_KEY_PARAMS*)bytes;
-	if (params == NULL) {
-		return 0;
-	}
-	CK_ULONG pubKeySize = params->ulModulusLen + params->ulExponentLen;
-	// check for overflow
-	if (pubKeySize < params->ulModulusLen || pubKeySize < params->ulExponentLen) {
-		return 0;
-	}
-    CK_ULONG offset = sizeof(CK_RSA_PUBLIC_KEY_PARAMS) + pubKeySize;
-
-	return offset;
-}
-
-CK_ULONG rsa_key_params_size() {
-    return (CK_ULONG)sizeof(CK_RSA_PUBLIC_KEY_PARAMS);
-}
-
-CK_ULONG ulModulusLen_offset(CK_BYTE_PTR bytes) {
-	CK_RSA_PUBLIC_KEY_PARAMS* params = (CK_RSA_PUBLIC_KEY_PARAMS*)bytes;
-	if (params == NULL) {
-		return 0;
-	}
-	return params->ulModulusLen;
-}
-
-CK_ULONG ulExponentLen_offset(CK_BYTE_PTR bytes) {
-	CK_RSA_PUBLIC_KEY_PARAMS* params = (CK_RSA_PUBLIC_KEY_PARAMS*)bytes;
-	if (params == NULL) {
-		return 0;
-	}
-	return params->ulExponentLen;
-}
 */
 import "C"
 
@@ -76,6 +37,7 @@ import (
 	"github.com/intel/trusted-certificate-issuer/internal/config"
 	"github.com/intel/trusted-certificate-issuer/internal/keyprovider"
 	selfca "github.com/intel/trusted-certificate-issuer/internal/self-ca"
+	"github.com/intel/trusted-certificate-issuer/internal/sgxutils"
 	"github.com/intel/trusted-certificate-issuer/internal/signer"
 	"github.com/miekg/pkcs11"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -638,47 +600,17 @@ func (ctx *SgxContext) generateQuote(pubKey pkcs11.ObjectHandle) ([]byte, []byte
 		return nil, nil, nil, err
 	}
 
-	offset := uint64(C.quote_offset(*(*C.CK_BYTE_PTR)(unsafe.Pointer(&quotePubKey))))
+	offset := sgxutils.QuoteOffset(quotePubKey)
 	if offset <= 0 || offset >= uint64(len(quotePubKey)) {
 		return nil, nil, nil, fmt.Errorf("quote generation failure: invalid quote")
 	}
 
-	publicKey, err := ParseQuotePublickey(quotePubKey[:offset])
+	publicKey, err := sgxutils.ParseQuotePublickey(quotePubKey[:offset])
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to parse quote public key: %v", err)
 	}
 
 	return quotePubKey[offset:], nonce, publicKey, nil
-}
-
-// ParseQuotePublickey reconstruct the rsa public key
-// from received bytes, received bytes structure like this:
-// pubkey_params   |    ulExponentLen   |    ulModulusLen
-// need to slice ulExponentLen and ulModulusLen to
-// reconstruct pubkey according to the size of each item
-func ParseQuotePublickey(pubkey []byte) (*rsa.PublicKey, error) {
-	paramsSize := uint64(C.rsa_key_params_size())
-	exponentLen := uint64(C.ulExponentLen_offset(*(*C.CK_BYTE_PTR)(unsafe.Pointer(&pubkey))))
-	modulusOffset := paramsSize + exponentLen
-	if modulusOffset >= uint64(len(pubkey)) {
-		return nil, fmt.Errorf("malformed quote public key: out of bounds")
-	}
-
-	var bigExponent = new(big.Int)
-	bigExponent.SetBytes(pubkey[paramsSize:modulusOffset])
-	if bigExponent.BitLen() > 32 || bigExponent.Sign() < 1 {
-		return nil, fmt.Errorf("malformed quote public key")
-	}
-	if bigExponent.Uint64() > uint64(math.MaxInt) {
-		return nil, fmt.Errorf("malformed quote public key: possible data loss in exponent value")
-	}
-	exponent := int(bigExponent.Uint64())
-	var modulus = new(big.Int)
-	modulus.SetBytes(pubkey[modulusOffset:])
-	return &rsa.PublicKey{
-		N: modulus,
-		E: exponent,
-	}, nil
 }
 
 func initP11Session(p11Ctx *pkcs11.Ctx, tokenLabel, userPin, soPin string) (pkcs11.SessionHandle, error) {
