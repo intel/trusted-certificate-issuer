@@ -46,7 +46,6 @@ import (
 
 const (
 	SgxLibrary                 = "/usr/local/lib/libp11sgx.so"
-	SgxCATokenLabel            = "TrustedCertificateService"
 	EnclaveQuoteKeyObjectLabel = "Enclave Quote"
 	RSAKeySize                 = 3072
 )
@@ -102,7 +101,7 @@ func NewContext(cfg config.Config, client client.Client) (*SgxContext, error) {
 	ctx.p11Ctx = pkcs11.New(SgxLibrary)
 
 	ctx.log.Info("Initiating p11Session...")
-	sh, err := initP11Session(ctx.p11Ctx, cfg.HSMTokenLabel, cfg.HSMUserPin, cfg.HSMSoPin)
+	sh, err := initP11Session(ctx.p11Ctx, cfg.HSMConfig.TokenLabel, cfg.HSMConfig.UserPin, cfg.HSMConfig.SoPin)
 	if err != nil {
 		ctx.Destroy()
 		return nil, err
@@ -121,7 +120,7 @@ func (ctx *SgxContext) TokenLabel() (string, error) {
 	if ctx == nil {
 		return "", fmt.Errorf("invalid SGX context")
 	}
-	return ctx.cfg.HSMTokenLabel, nil
+	return ctx.cfg.HSMConfig.TokenLabel, nil
 }
 
 func (ctx *SgxContext) GetQuote(signerName string) (*keyprovider.QuoteInfo, error) {
@@ -457,8 +456,8 @@ func (ctx *SgxContext) reloadCryptoContext() error {
 
 	cryptoCtx, err := crypto11.Configure(&crypto11.Config{
 		Path:       SgxLibrary,
-		TokenLabel: ctx.cfg.HSMTokenLabel,
-		Pin:        ctx.cfg.HSMUserPin,
+		TokenLabel: ctx.cfg.HSMConfig.TokenLabel,
+		Pin:        ctx.cfg.HSMConfig.UserPin,
 	})
 	if err != nil {
 		return err
@@ -469,8 +468,8 @@ func (ctx *SgxContext) reloadCryptoContext() error {
 
 func (ctx *SgxContext) initializeToken() error {
 	cmd := exec.Command("pkcs11-tool", "--module", SgxLibrary, "--init-token",
-		"--init-pin", "--slot-index", fmt.Sprintf("%d", 0), "--label", ctx.cfg.HSMTokenLabel,
-		"--pin", ctx.cfg.HSMUserPin, "--so-pin", ctx.cfg.HSMSoPin)
+		"--init-pin", "--slot-index", fmt.Sprintf("%d", 0), "--label", ctx.cfg.HSMConfig.TokenLabel,
+		"--pin", ctx.cfg.HSMConfig.UserPin, "--so-pin", ctx.cfg.HSMConfig.SoPin)
 
 	if output, err := cmd.CombinedOutput(); err != nil {
 		ctx.log.Info("Failed token initialize", "command", cmd.Args, "output", output)

@@ -17,7 +17,11 @@ limitations under the License.
 package config
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+
+	"github.com/creasty/defaults"
 )
 
 const (
@@ -33,15 +37,24 @@ type Config struct {
 	CSRFullCertChain   bool
 	RandomNonce        bool
 
-	HSMTokenLabel    string
-	HSMUserPin       string
-	HSMSoPin         string
 	HSMConfigPath    string
+	HSMConfig        HSMConfig
 	KeyWrapMechanism string
 }
 
-func (cfg Config) Validate() error {
-	if cfg.HSMSoPin == "" || cfg.HSMUserPin == "" {
+type HSMConfig struct {
+	TokenLabel string `json:"tokenLabel" default:"SgxOperator"`
+	UserPin    string `json:"userPin"`
+	SoPin      string `json:"soPin"`
+}
+
+func (cfg *Config) Validate() error {
+	if cfg.HSMConfigPath != "" {
+		if err := cfg.parseHSMConfig(); err != nil {
+			return fmt.Errorf("failed to parse hsm config: %v", err)
+		}
+	}
+	if cfg.HSMConfig.SoPin == "" || cfg.HSMConfig.UserPin == "" {
 		return fmt.Errorf("invalid HSM config: missing user/so pin")
 	}
 
@@ -51,4 +64,18 @@ func (cfg Config) Validate() error {
 	}
 
 	return nil
+}
+
+func (cfg *Config) parseHSMConfig() error {
+	if cfg.HSMConfigPath == "" {
+		return nil
+	}
+	defaults.Set(&cfg.HSMConfig)
+
+	data, err := ioutil.ReadFile(cfg.HSMConfigPath)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(data, &cfg.HSMConfig)
 }

@@ -64,9 +64,10 @@ func main() {
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&cfg.CertManagerIssuer, "cert-manager-issuer", true, "Run it as issuer for cert-manager.")
-	flag.StringVar(&cfg.HSMTokenLabel, "token-label", "SgxOperator", "PKCS11 label to use for the operator token.")
-	flag.StringVar(&cfg.HSMUserPin, "user-pin", "", "PKCS11 token user pin.")
-	flag.StringVar(&cfg.HSMSoPin, "so-pin", "", "PKCS11 token so/admin pin.")
+	flag.StringVar(&cfg.HSMConfigPath, "hsm-config-file", "/etc/hsm/config.json", "File path that holds HSM configuration in JSON format(so/user pin, token label etc).")
+	flag.StringVar(&cfg.HSMConfig.TokenLabel, "token-label", "SgxOperator", "[Deprecated]: PKCS11 label to use for the operator token.")
+	flag.StringVar(&cfg.HSMConfig.UserPin, "user-pin", "", "[Deprecated]: PKCS11 token user pin.")
+	flag.StringVar(&cfg.HSMConfig.SoPin, "so-pin", "", "[Deprecated]: PKCS11 token so/admin pin.")
 	flag.BoolVar(&cfg.CSRFullCertChain, "csr-full-cert-chain", false, "Return full certificate chain in Kubernetes CSR certificate.")
 	flag.BoolVar(&cfg.RandomNonce, "use-random-nonce", true, "Use random nonce for SGX quote generation. Needed for KMRA version >= v2.2.")
 	flag.StringVar(&cfg.KeyWrapMechanism, "key-wrap-mechanism", config.KeyWrapAesKeyWrapPad, "CA private key wrapping mechanism to use. One of: '"+config.KeyWrapAesGCM+"' or '"+config.KeyWrapAesKeyWrapPad+"'.")
@@ -80,7 +81,7 @@ func main() {
 	setupLog := ctrl.Log.WithName("setup")
 
 	if err := cfg.Validate(); err != nil {
-		setupLog.Error(err, "Invald operator configuration")
+		setupLog.Error(err, "Invalid operator configuration")
 		os.Exit(1)
 	}
 
