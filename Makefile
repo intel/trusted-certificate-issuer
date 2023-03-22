@@ -64,7 +64,7 @@ test: vendor manifests fmt ## Run tests.
 ##@ Build
 
 build: generate fmt vet ## Build manager binary.
-	go build -o bin/tcs-issuer main.go
+	go build --buildmode=pie -o bin/tcs-issuer main.go
 
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go

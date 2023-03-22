@@ -131,7 +131,7 @@ COPY api/ api/
 COPY vendor/ vendor/
 COPY LICENSE LICENSE
 
-RUN CGO_ENABLED=1 CGO_LDFLAGS="-L/usr/local/lib" GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -o /manager main.go
+RUN CGO_ENABLED=1 CGO_LDFLAGS="-L/usr/local/lib" GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a --buildmode=pie -o /manager main.go
 RUN mkdir -p /usr/local/share/package-licenses \
   && cp /go/LICENSE /usr/local/share/package-licenses/go.LICENSE \
   && cp LICENSE /usr/local/share/package-licenses/tcs-issuer.LICENSE \
