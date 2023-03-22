@@ -18,7 +18,7 @@ ARG DCAP_VERSION="1.16.100.2"
 # Build the manager binary
 FROM ubuntu:jammy as builder
 
-ARG GO_VERSION="1.19.3"
+ARG GO_VERSION="1.20"
 ARG SDK_VERSION
 ARG DCAP_VERSION
 ARG SGX_SDK_INSTALLER=sgx_linux_x64_sdk_${SDK_VERSION}.bin
