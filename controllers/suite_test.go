@@ -29,11 +29,11 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	tcsapi "github.com/intel/trusted-certificate-issuer/api/v1alpha1"
+	"github.com/intel/trusted-certificate-issuer/api/v1alpha2"
 	csrv1 "k8s.io/api/certificates/v1"
 	//+kubebuilder:scaffold:imports
 )
@@ -52,10 +52,7 @@ const (
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
-
-	RunSpecsWithDefaultAndCustomReporters(t,
-		"Controller Suite",
-		[]Reporter{printer.NewlineReporter{}})
+	RunSpecs(t, "Controller Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -80,6 +77,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred(), "failed to add core types to scheme")
 	err = tcsapi.AddToScheme(scheme)
 	Expect(err).NotTo(HaveOccurred(), "failed to add TCS types to scheme")
+	err = v1alpha2.AddToScheme(scheme)
+	Expect(err).NotTo(HaveOccurred(), "failed to add TCS v1alpha2 types to scheme")
 
 	//+kubebuilder:scaffold:scheme
 

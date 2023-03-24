@@ -49,6 +49,7 @@ spec:
         - --zap-log-level=5
         - --metrics-bind-address=:8082
         - --health-probe-bind-address=:8083
+        - --hsm-config-path=/etc/hsm/config.json
         - --user-pin=$USER_PIN
         - --so-pin=$SO_PIN
         - --use-random-nonce=true # Disable this if using KMRA version < 2.2
@@ -84,22 +85,13 @@ spec:
             memory: 20Mi
             sgx.intel.com/enclave: 1
             sgx.intel.com/epc: 512Ki
-        env:
-        - name: USER_PIN
-          valueFrom:
-            secretKeyRef:
-              name: tcs-issuer-pkcs11-conf
-              key: userpin
-        - name: SO_PIN
-          valueFrom:
-            secretKeyRef:
-              name: tcs-issuer-pkcs11-conf
-              key: sopin
         volumeMounts:
           # This is the path expected/configured by the crypto-api-toolkit
           # for (un)sealing the tokens. Do not change this path.
           - mountPath: /home/tcs-issuer/tokens
             name: tokens-dir
+          - mountPath: /etc/hsm
+            name: hsm-config
       serviceAccountName: tcs-issuer-serviceaccount
       terminationGracePeriodSeconds: 10
       volumes:
@@ -107,3 +99,7 @@ spec:
           path: /var/lib/tcs-issuer/tokens
           type: DirectoryOrCreate
         name: tokens-dir
+      - secret:
+          secretName: tcs-issuer-pkcs11-conf
+          optional: false
+        name: hsm-config
