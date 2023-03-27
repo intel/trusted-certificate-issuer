@@ -38,3 +38,40 @@ jobs:
       uses: github/codeql-action/upload-sarif@v2
       with:
        sarif_file: snyk.json
+       
+  codeQL-init:
+    runs-on: ubuntu-latest
+    environment:
+      name: dev
+      url: https://github.com
+
+    steps:    
+    - name: Checkout
+      uses: actions/checkout@master
+      
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v2
+      with:
+        languages: go
+        
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+   
+  codeQL-upload:
+    runs-on: ubuntu-latest
+    environment:
+      name: dev
+      url: https://github.com 
+    
+    steps:  
+    - name: Checkout
+      uses: actions/checkout@master
+        
+    - name: Upload result to GitHub Code Scanning
+      if: ${{ github.event_name != 'pull_request' }}
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+          sarif_file: results.sarif
+          wait-for-processing: true     
+
+  
