@@ -319,7 +319,7 @@ spec:
         - --zap-log-level=5
         - --metrics-bind-address=:8082
         - --health-probe-bind-address=:8083
-        - --hsm-config-path=/etc/hsm/config.json
+        - --hsm-config-file=/etc/hsm/config.json
         - --user-pin=$USER_PIN
         - --so-pin=$SO_PIN
         - --use-random-nonce=true
