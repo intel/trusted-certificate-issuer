@@ -31,3 +31,6 @@ enclave-config/privatekey.pem
 *~
 charts/crds
 tcs-issuer*.tgz
+
+# Allows the dist folder
+!dist/
