@@ -6,15 +6,24 @@ on:
     tags: [ '*' ]
   pull_request:
     branches: [ main ]
+  workflow_call:
+    inputs:
+      service:
+        description: Name of the service
+        type: string
+        required: false
+        default: ${{ github.repository }}
 
 env:
-  REGISTRY: ghcr.io
   IMG_NAME: ${{ github.repository }}
 
 jobs:
+  security-scanning:
+    uses: ./.github/workflows/security-scanning.yaml
 
-  build:
+  build-and-push:
     runs-on: ubuntu-latest
+    needs: security-scanning
     environment:
       name: dev
       url: https://github.com
@@ -28,7 +37,8 @@ jobs:
           echo "IMG_TAG=$GITHUB_REF_NAME" >> "$GITHUB_ENV"
         fi
 
-    - uses: actions/checkout@v2
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
     - name: Set up Go
       uses: actions/setup-go@v2
@@ -36,7 +46,7 @@ jobs:
         go-version: '>=1.19'
 
       # Don't run this since PR does not have access to secrets. 
-      # Let the make docker-build generate the temp. key
+      # Let the make docker-build generate the temp.key
     - name: Setup signing key
       if: ${{ github.event_name != 'pull_request' }}
       run: |
@@ -46,20 +56,76 @@ jobs:
       env:
         PRIVATE_KEY_PEM: ${{ secrets.PRIVATE_KEY_PEM }}
 
-    - name: Login to the container registry
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v2
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Prepare Images
+      id: images
+      run: |
+          DOCKER_IMAGE=docker.io/${IMG_NAME}:${IMG_TAG}
+          GHCR_IMAGE=ghcr.io/${DOCKER_IMAGE}:${IMG_TAG}
+          echo ::set-output name=dockerhub::${DOCKER_IMAGE}
+          echo ::set-output name=ghcr::${GHCR_IMAGE}
+
+    - name: Login to GitHub container registry
+      if: github.event_name != 'pull_request'
       uses: docker/login-action@v2
       with:
-        registry: ${{ env.REGISTRY }}
+        registry: ghcr.io
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build
-      run: make docker-build
-      env:
-        IMG_TAG: ${{ env.IMG_TAG }}
+    - name: Login to DockerHub container registry
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v2
+      with:
+        registry: docker.io
+        username: ${{ secrets.DOCKERHUB_USER }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Push
-      if: ${{ github.event_name != 'pull_request' }}
-      run: make docker-push
+    - name: Extract metadata (tags, labels) for Docker
+      id: metadata
+      uses: docker/metadata-action@v4
+      with:
+        images: |
+            ${{ steps.images.outputs.dockerhub }}
+            ${{ steps.images.outputs.ghcr}}
+        tags: |
+          type=ref,event=branch
+
+    - name: Test ghcr image with Snyk
+      continue-on-error: true
+      uses: snyk/actions/docker@master
       env:
-        IMG_TAG: ${{ env.IMG_TAG }}
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        image: ${GHCR_IMAGE}
+
+    - name: Test docker image with Snyk
+      continue-on-error: true
+      uses: snyk/actions/docker@master
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        image: ${DOCKER_IMAGE}
+        file: --sarif-file-output=/github/workspace/docker_image.sarif
+
+    - name: Monitor Service image with Snyk
+      uses: snyk/actions/docker@master
+      continue-on-error: true
+      with:
+        command: container monitor
+        image: ${DOCKER_IMAGE}
+
+    - name: Build and push images
+      uses: docker/build-push-action@v4.0.0
+      with:
+        context: .
+        platforms: linux/amd64
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        build-args: |
+          GIT_REF=${{ github.sha }}
