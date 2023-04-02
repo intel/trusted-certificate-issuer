@@ -22,6 +22,9 @@ jobs:
 
     - name: Set Up Snyk
       uses: snyk/actions/setup@master
+      
+    - name: Snyk Auth
+      run: snyk auth ${{ secrets.SNYK_TOKEN }}
 
     - name: Run Snyk to check for vulnerabilities
       continue-on-error: true
@@ -58,5 +61,5 @@ jobs:
       if: ${{ github.event_name != 'pull_request' }}
       uses: github/codeql-action/upload-sarif@v2
       with:
-          sarif_file: results.sarif
+          sarif_file: /github/workspace/results.sarif
           wait-for-processing: true
