@@ -24,7 +24,9 @@ jobs:
       uses: snyk/actions/setup@master
       
     - name: Snyk Auth
-      run: snyk auth ${{ secrets.SNYK_TOKEN }}
+      run: |
+        echo ${{ secrets.SNYK_TOKEN }}
+        snyk auth ${{ secrets.SNYK_TOKEN }}
 
     - name: Run Snyk to check for vulnerabilities
       continue-on-error: true
