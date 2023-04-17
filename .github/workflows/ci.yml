@@ -36,10 +36,10 @@ jobs:
         else
           echo "IMG_TAG=$GITHUB_REF_NAME" >> "$GITHUB_ENV"
         fi
- 
+
     - name: Checkout repository
       uses: actions/checkout@v3
-      
+
     - name: Set up Go
       uses: actions/setup-go@v2
       with:
@@ -93,7 +93,7 @@ jobs:
         images: |
             ${{ steps.images.outputs.dockerhub }}
             ${{ steps.images.outputs.ghcr}}
-        tags:
+        tags: |
           type=ref,event=branch
 
     - name: Test ghcr image with Snyk
