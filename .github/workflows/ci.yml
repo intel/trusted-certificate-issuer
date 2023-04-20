@@ -66,7 +66,7 @@ jobs:
       id: images
       run: |
           DOCKER_IMAGE=docker.io/${IMG_NAME}:${IMG_TAG}
-          GHCR_IMAGE=ghcr.io/${DOCKER_IMAGE}:${IMG_TAG}
+          GHCR_IMAGE=ghcr.io/${IMG_NAME}:${IMG_TAG}
           echo ::set-output name=dockerhub::${DOCKER_IMAGE}
           echo ::set-output name=ghcr::${GHCR_IMAGE}
 
@@ -119,13 +119,22 @@ jobs:
       with:
         command: container monitor
         image: ${DOCKER_IMAGE}
+    
+    - name: Build
+      run: make docker-build
+      env:
+        IMG_TAG: ${{ env.IMG_TAG }}
+        
+    - name: Push to GitHub Container Registry
+      if: ${{ github.event_name != 'pull_request' }}
+      run: make docker-push
+      env:
+        REGISTRY: gchr.io
+        IMG_TAG: ${{ env.IMG_TAG }}
 
-    - name: Build and push images
-      uses: docker/build-push-action@v4.0.0
-      with:
-        context: .
-        platforms: linux/amd64
-        push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ steps.meta.outputs.tags }}
-        build-args: |
-          GIT_REF=${{ github.sha }}
+    - name: Push to DockerHub Container Registry
+      if: ${{ github.event_name != 'pull_request' }}
+      run: make docker-push
+      env:
+        REGISTRY: docker.io
+        IMG_TAG: ${{ env.IMG_TAG }}
