@@ -8,6 +8,10 @@ on:
         type: string
         required: false
         default: ${{ github.repository }}
+        
+env:
+  IMG_NAME: ${{ github.repository }}
+  REGISTRY: ghcr.io
 
 jobs:
   codeQL:
@@ -42,6 +46,9 @@ jobs:
       url: https://github.com
       
     steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      
     - name: Set up env
       run: |
         if [[ $GITHUB_EVENT_NAME == 'pull_request' ]]; then
@@ -49,6 +56,19 @@ jobs:
         else
           echo "IMG_TAG=$GITHUB_REF_NAME" >> "$GITHUB_ENV"
         fi
+        
+    - name: Docker meta
+      id: meta
+      uses: docker/metadata-action@v4
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMG_NAME }}
+        
+    - name: Run Trivy vulnerability scanner in fs mode
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        trivy-config: trivy.yaml
     
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
