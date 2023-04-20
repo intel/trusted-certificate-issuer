@@ -34,3 +34,28 @@ jobs:
       with:
           sarif_file: /github/workspace/results.sarif
           wait-for-processing: true
+         
+  trivy:
+    runs-on: ubuntu-latest
+    environment:
+      name: dev
+      url: https://github.com
+      
+    steps:
+    - name: Set up env
+      run: |
+        if [[ $GITHUB_EVENT_NAME == 'pull_request' ]]; then
+          echo "IMG_TAG=latest" >> "$GITHUB_ENV"
+        else
+          echo "IMG_TAG=$GITHUB_REF_NAME" >> "$GITHUB_ENV"
+        fi
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'ghcr.io/intel/trusted-certificate-issuer:$IMG_TAG'
+        format: 'table'
+        exit-code: '1'
+        ignore-unfixed: true
+        vuln-type: 'os,library'
+        severity: 'CRITICAL,HIGH'
