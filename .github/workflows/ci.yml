@@ -126,14 +126,12 @@ jobs:
         IMG_TAG: ${{ env.IMG_TAG }}
         
     - name: Push to GitHub Container Registry
-      if: ${{ github.event_name != 'pull_request' }}
       run: make docker-push
       env:
         REGISTRY: gchr.io
         IMG_TAG: ${{ env.IMG_TAG }}
 
     - name: Push to DockerHub Container Registry
-      if: ${{ github.event_name != 'pull_request' }}
       run: make docker-push
       env:
         REGISTRY: docker.io
