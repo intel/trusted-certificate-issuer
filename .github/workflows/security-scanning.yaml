@@ -13,6 +13,57 @@ env:
   IMG_NAME: ${{ github.repository }}
 
 jobs:
+  trivy:
+    runs-on: ubuntu-latest
+    environment:
+      name: dev
+      url: https://github.com
+      
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Set up env
+      run: |
+        if [[ $GITHUB_EVENT_NAME == 'pull_request' ]]; then
+          echo "IMG_TAG=latest" >> "$GITHUB_ENV"
+        else
+          echo "IMG_TAG=$GITHUB_REF_NAME" >> "$GITHUB_ENV"
+        fi
+        
+    - name: Docker meta
+      id: meta
+      uses: docker/metadata-action@v4
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMG_NAME }}
+
+    - name: Run Trivy vulnerability scanner in fs mode
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        trivy-config: trivy.yaml
+
+    - name: Run Trivy vulnerability scanner for GitHub Registry image
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'ghcr.io/intel/trusted-certificate-issuer:latest'
+        format: 'table'
+        exit-code: '1'
+        ignore-unfixed: true
+        vuln-type: 'os,library'
+        severity: 'CRITICAL,HIGH'
+
+    - name: Run Trivy vulnerability scanner for DockerHub image
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'docker.io/intel/trusted-certificate-issuer:latest'
+        format: 'table'
+        exit-code: '1'
+        ignore-unfixed: true
+        vuln-type: 'os,library'
+        severity: 'CRITICAL,HIGH'
+
   codeQL:
     runs-on: ubuntu-latest
     environment:
