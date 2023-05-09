@@ -1,45 +1,70 @@
 name: Security Scanning
 
 on:
-  push:
-    branches: [ main, 'release-*' ]
-    tags: [ '*' ]
-  pull_request:
-    branches: [ main ]
+  workflow_call:
+    inputs:
+      service:
+        description: Name of the service
+        type: string
+        required: false
+        default: ${{ github.repository }}
+        
+env:
+  IMG_NAME: ${{ github.repository }}
 
 jobs:
-  snyk:
+  trivy:
     runs-on: ubuntu-latest
     environment:
       name: dev
       url: https://github.com
-
-    steps:    
-    - name: Checkout
-      uses: actions/checkout@master
       
-    - name: Set Up Snyk
-      uses: snyk/actions/setup@master
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Set up env
+      run: |
+        if [[ $GITHUB_EVENT_NAME == 'pull_request' ]]; then
+          echo "IMG_TAG=latest" >> "$GITHUB_ENV"
+        else
+          echo "IMG_TAG=$GITHUB_REF_NAME" >> "$GITHUB_ENV"
+        fi
         
-    - name: Run Snyk to check for vulnerabilities
-      continue-on-error: true
-      uses: snyk/actions/golang@master
-      env:
-        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-      with:   
-        json: true
-        args: --sarif-file-output=snyk.json
-        
-    - name: Check snyk file
-      run: | 
-        cat snyk.json
-        
-    - name: Upload result to GitHub Code Scanning
-      uses: github/codeql-action/upload-sarif@v2
+    - name: Docker meta
+      id: meta
+      uses: docker/metadata-action@v4
       with:
-       sarif_file: snyk.json
-       
-  codeQL-init:
+        images: ${{ env.REGISTRY }}/${{ env.IMG_NAME }}
+
+    - name: Run Trivy vulnerability scanner in fs mode
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        trivy-config: trivy.yaml
+
+    - name: Run Trivy vulnerability scanner for GitHub Registry image
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'ghcr.io/intel/trusted-certificate-issuer:main'
+        format: 'table'
+        exit-code: '1'
+        ignore-unfixed: true
+        vuln-type: 'os,library'
+        severity: 'CRITICAL,HIGH'
+
+    - name: Run Trivy vulnerability scanner for DockerHub image
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'docker.io/intel/trusted-certificate-issuer:latest'
+        format: 'table'
+        exit-code: '1'
+        ignore-unfixed: true
+        vuln-type: 'os,library'
+        severity: 'CRITICAL,HIGH'
+
+  codeQL:
     runs-on: ubuntu-latest
     environment:
       name: dev
@@ -48,28 +73,11 @@ jobs:
     steps:    
     - name: Checkout
       uses: actions/checkout@master
-      
+
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v2
       with:
         languages: go
-        
+
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
-   
-  codeQL-upload:
-    runs-on: ubuntu-latest
-    environment:
-      name: dev
-      url: https://github.com 
-    
-    steps:  
-    - name: Checkout
-      uses: actions/checkout@master
-        
-    - name: Upload result to GitHub Code Scanning
-      if: ${{ github.event_name != 'pull_request' }}
-      uses: github/codeql-action/upload-sarif@v2
-      with:
-          sarif_file: results.sarif
-          wait-for-processing: true     
