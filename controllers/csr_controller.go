@@ -264,22 +264,6 @@ func (r *CSRReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}).Complete(r)
 }
 
-// isCSRApproved checks if the given Kubernetes certificate signing request
-// has been approved by the cluster admin
-func isCSRApproved(csrStatus *crtv1.CertificateSigningRequestStatus) bool {
-	approved := false
-	for _, c := range csrStatus.Conditions {
-		if c.Type == crtv1.CertificateApproved {
-			approved = true
-		}
-		if c.Type == crtv1.CertificateDenied {
-			return false
-		}
-	}
-
-	return approved
-}
-
 func csrHasCondition(csrStatus *crtv1.CertificateSigningRequestStatus,
 	condition crtv1.RequestConditionType) bool {
 

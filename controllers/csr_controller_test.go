@@ -150,7 +150,7 @@ var _ = Describe("CSR controller", func() {
 
 			err := k8sClient.Create(context.TODO(), tc.csr)
 			Expect(err).ShouldNot(HaveOccurred(), "failed to create CSR object")
-			defer k8sClient.Delete(context.TODO(), tc.csr)
+			defer k8sClient.Delete(context.TODO(), tc.csr) // nolint: errcheck
 
 			key := types.NamespacedName{
 				Name:      tc.csr.GetName(),

@@ -178,7 +178,7 @@ var _ = Describe("Issuer controller", func() {
 				issuer := newIssuer(isCluster, objName, "ca-secret", true)
 				err := k8sClient.Create(context.TODO(), issuer)
 				Expect(err).ShouldNot(HaveOccurred(), "failed to crate issuer object")
-				defer k8sClient.Delete(context.TODO(), issuer)
+				defer k8sClient.Delete(context.TODO(), issuer) // nolint: errcheck
 
 				res, err := ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
 				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
@@ -199,7 +199,7 @@ var _ = Describe("Issuer controller", func() {
 				issuer := newIssuer(isCluster, objName, "ca-secret", true)
 				err := k8sClient.Create(context.TODO(), issuer)
 				Expect(err).ShouldNot(HaveOccurred(), "failed to crate issuer object")
-				defer k8sClient.Delete(context.TODO(), issuer)
+				defer k8sClient.Delete(context.TODO(), issuer) // nolint: errcheck
 
 				res, err := ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
 				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
@@ -221,7 +221,7 @@ var _ = Describe("Issuer controller", func() {
 					},
 				})
 				Expect(err).ShouldNot(HaveOccurred(), "failed to crate issuer object")
-				defer k8sClient.Delete(context.TODO(), issuer)
+				defer k8sClient.Delete(context.TODO(), issuer) // nolint: errcheck
 
 				err = k8sClient.Get(context.TODO(), objName, issuer)
 				Expect(err).ShouldNot(HaveOccurred(), "fetch issuer object")
@@ -284,7 +284,7 @@ var _ = Describe("Issuer controller", func() {
 				issuer := newIssuer(isCluster, objName, "ca-secret", false)
 				err := k8sClient.Create(context.TODO(), issuer)
 				Expect(err).ShouldNot(HaveOccurred(), "failed to crate issuer object")
-				defer k8sClient.Delete(context.TODO(), issuer)
+				defer k8sClient.Delete(context.TODO(), issuer) // nolint: errcheck
 
 				err = k8sClient.Get(context.TODO(), objName, issuer)
 				Expect(err).ShouldNot(HaveOccurred(), "fetch issuer object")
@@ -322,7 +322,7 @@ var _ = Describe("Issuer controller", func() {
 				issuer := newIssuer(isCluster, objName, "ca-secret", false)
 				err := k8sClient.Create(context.TODO(), issuer)
 				Expect(err).ShouldNot(HaveOccurred(), "failed to crate issuer object")
-				defer k8sClient.Delete(context.TODO(), issuer)
+				defer k8sClient.Delete(context.TODO(), issuer) // nolint: errcheck
 
 				err = k8sClient.Get(context.TODO(), objName, issuer)
 				Expect(err).ShouldNot(HaveOccurred(), "fetch issuer object")
@@ -362,7 +362,7 @@ var _ = Describe("Issuer controller", func() {
 				issuer := newIssuer(isCluster, objName, "ca-secret", false)
 				err := k8sClient.Create(context.TODO(), issuer)
 				Expect(err).ShouldNot(HaveOccurred(), "failed to crate issuer object")
-				defer k8sClient.Delete(context.TODO(), issuer)
+				defer k8sClient.Delete(context.TODO(), issuer) // nolint: errcheck
 
 				err = k8sClient.Get(context.TODO(), objName, issuer)
 				Expect(err).ShouldNot(HaveOccurred(), "fetch issuer object")
@@ -402,7 +402,7 @@ var _ = Describe("Issuer controller", func() {
 				}
 				err = k8sClient.Create(context.TODO(), qaSecret)
 				Expect(err).ShouldNot(HaveOccurred(), "create CA secret")
-				defer k8sClient.Delete(context.TODO(), qaSecret)
+				defer k8sClient.Delete(context.TODO(), qaSecret) // nolint: errcheck
 				qa.Status.SetCondition(tcsapi.ConditionReady, v1.ConditionTrue, tcsapi.ReasonControllerReconcile, "Quote attestation success")
 				err = k8sClient.Status().Update(context.TODO(), qa)
 				Expect(err).ShouldNot(HaveOccurred(), "Update QA status")
@@ -418,7 +418,7 @@ var _ = Describe("Issuer controller", func() {
 				issuer := newIssuer(isCluster, objName, "ca-secret", false)
 				err := k8sClient.Create(context.TODO(), issuer)
 				Expect(err).ShouldNot(HaveOccurred(), "failed to crate issuer object")
-				defer k8sClient.Delete(context.TODO(), issuer)
+				defer k8sClient.Delete(context.TODO(), issuer) // nolint: errcheck
 
 				err = k8sClient.Get(context.TODO(), objName, issuer)
 				Expect(err).ShouldNot(HaveOccurred(), "fetch issuer object")
@@ -459,7 +459,7 @@ var _ = Describe("Issuer controller", func() {
 				}
 				err = k8sClient.Create(context.TODO(), qaSecret)
 				Expect(err).ShouldNot(HaveOccurred(), "create CA secret")
-				defer k8sClient.Delete(context.TODO(), qaSecret)
+				defer k8sClient.Delete(context.TODO(), qaSecret) // nolint: errcheck
 				qa.Status.SetCondition(tcsapi.ConditionReady, v1.ConditionTrue, tcsapi.ReasonControllerReconcile, "Quote attestation success")
 				err = k8sClient.Status().Update(context.TODO(), qa)
 				Expect(err).ShouldNot(HaveOccurred(), "Update QA status")
@@ -475,7 +475,7 @@ var _ = Describe("Issuer controller", func() {
 				issuer := newIssuer(isCluster, objName, "ca-secret", false)
 				err := k8sClient.Create(context.TODO(), issuer)
 				Expect(err).ShouldNot(HaveOccurred(), "failed to crate issuer object")
-				defer k8sClient.Delete(context.TODO(), issuer)
+				defer k8sClient.Delete(context.TODO(), issuer) // nolint: errcheck
 
 				res, err := ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
 				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
@@ -529,7 +529,7 @@ var _ = Describe("Issuer controller", func() {
 				issuer := newIssuer(isCluster, objName, "ca-secret", true)
 				err := k8sClient.Create(context.TODO(), issuer)
 				Expect(err).ShouldNot(HaveOccurred(), "failed to crate issuer object")
-				defer k8sClient.Delete(context.TODO(), issuer)
+				defer k8sClient.Delete(context.TODO(), issuer) // nolint: errcheck
 
 				res, err := ic.Reconcile(context.TODO(), reconcile.Request{NamespacedName: objName})
 				Expect(err).ShouldNot(HaveOccurred(), "unexpected reconcile error")
@@ -555,7 +555,7 @@ var _ = Describe("Issuer controller", func() {
 					},
 				})
 				Expect(err).ShouldNot(HaveOccurred(), "failed to crate issuer object")
-				defer k8sClient.Delete(context.TODO(), issuer)
+				defer k8sClient.Delete(context.TODO(), issuer) // nolint: errcheck
 
 				err = k8sClient.Get(context.TODO(), objName, issuer)
 				Expect(err).ShouldNot(HaveOccurred(), "fetch issuer object")

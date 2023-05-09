@@ -161,7 +161,7 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 			}
 
 			// Remove attestation object as we got the results
-			defer k8sutil.QuoteAttestationDelete(context.Background(), r.Client, qaReq)
+			defer k8sutil.QuoteAttestationDelete(context.Background(), r.Client, qaReq) // nolint: errcheck
 
 			if status.Status == v1.ConditionFalse {
 				// Secret delivery failure
@@ -234,24 +234,20 @@ func (r *IssuerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			signerName := r.signerNameForIssuer(e.Object)
 			r.Log.Info("Removing CA stored token for deleted issuer", "issuer", signerName)
-			r.KeyProvider.RemoveSigner(signerName)
-			r.Log.Info("Removing CA secrets for deleted issuer", "issuer", signerName)
+			if err := r.KeyProvider.RemoveSigner(signerName); err != nil {
+				r.Log.Info("Failed to remove CA secrets in token for deleted issuer", "issuer", signerName, "error", err)
+			}
+			r.Log.Info("Removed CA secrets for deleted issuer", "issuer", signerName)
 			issuerSpec, _, err := IssuerSpecAndStatus(e.Object)
 			if err != nil {
 				r.Log.Error(err, "Unexpected error while getting issuer spec and status.")
 				return false
 			}
-
 			ns := e.Object.GetNamespace()
 			if r.Kind == "TCSClusterIssuer" {
 				ns = k8sutil.GetNamespace()
 			}
-			secret := &v1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      issuerSpec.SecretName,
-					Namespace: ns,
-				},
-			}
+			secret := &v1.Secret{ObjectMeta: metav1.ObjectMeta{Name: issuerSpec.SecretName, Namespace: ns}}
 			ctx, cancel := context.WithTimeout(context.TODO(), time.Duration(time.Minute))
 			defer cancel()
 			if err := k8sutil.UnsetFinalizer(ctx, r.Client, secret, func() client.Object {
@@ -259,19 +255,12 @@ func (r *IssuerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}); err != nil {
 				r.Log.Info("Failed to update finalizer on Secret", "issuer", signerName, "error", err)
 			}
-
-			qa := &v1alpha2.QuoteAttestation{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      e.Object.GetName(),
-					Namespace: ns,
-				},
-			}
+			qa := &v1alpha2.QuoteAttestation{ObjectMeta: metav1.ObjectMeta{Name: e.Object.GetName(), Namespace: ns}}
 			if err := k8sutil.UnsetFinalizer(ctx, r.Client, qa, func() client.Object {
 				return qa.DeepCopy()
 			}); err != nil {
 				r.Log.Info("Failed to update finalizer on QuoteAttestation", "issuer", signerName, "error", err)
 			}
-
 			return false
 		},
 		UpdateFunc: func(ue event.UpdateEvent) bool { return false },
