@@ -191,7 +191,7 @@ func ValidateCSRQuote(ctx context.Context, c client.Client, obj client.Object, c
 		return false, true, nil
 	}
 	// Remove quote attestation object
-	defer c.Delete(context.Background(), qa)
+	defer c.Delete(context.Background(), qa) // nolint: errcheck
 	return status.Status == v1.ConditionTrue, false, nil
 }
 

@@ -98,7 +98,7 @@ var _ = AfterSuite(func() {
 		nsObj := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
 			Name: testIssuerNS,
 		}}
-		k8sClient.Delete(context.TODO(), nsObj)
+		k8sClient.Delete(context.TODO(), nsObj) // nolint: errcheck
 	}
 
 	By("tearing down the test environment")
