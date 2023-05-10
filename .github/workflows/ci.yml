@@ -75,7 +75,7 @@ jobs:
       uses: docker/login-action@v2
       with:
         registry: ghcr.io
-        username: ${{ github.repository_owner }}
+        username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Login to DockerHub container registry
@@ -95,23 +95,6 @@ jobs:
             ${{ steps.images.outputs.ghcr}}
         tags: |
           type=ref,event=branch
-
-    - name: Test ghcr image with Snyk
-      continue-on-error: true
-      uses: snyk/actions/docker@master
-      env:
-        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-      with:
-        image: ${GHCR_IMAGE}
-
-    - name: Test docker image with Snyk
-      continue-on-error: true
-      uses: snyk/actions/docker@master
-      env:
-        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-      with:
-        image: ${DOCKER_IMAGE}
-        file: --sarif-file-output=/github/workspace/docker_image.sarif
 
     - name: Monitor Service image with Snyk
       uses: snyk/actions/docker@master
