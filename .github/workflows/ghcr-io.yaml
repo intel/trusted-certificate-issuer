@@ -1,0 +1,73 @@
+name: Create and publish a Docker image
+
+on:
+  push:
+    branches: [ main, 'release-*' ]
+    tags: [ '*' ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+    - name: Set up env
+      run: |
+        if [[ $GITHUB_EVENT_NAME == 'pull_request' ]]; then
+          echo "IMG_TAG=latest" >> "$GITHUB_ENV"
+        else
+          echo "IMG_TAG=$GITHUB_REF_NAME" >> "$GITHUB_ENV"
+        fi
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '>=1.19'
+
+      # Don't run this since PR does not have access to secrets. 
+      # Let the make docker-build generate the temp. key
+      
+    - name: Setup signing key
+      if: ${{ github.event_name != 'pull_request' }}
+      run: |
+        echo "$PRIVATE_KEY_PEM" > enclave-config/privatekey.pem
+        sha256sum enclave-config/privatekey.pem
+      shell: bash
+      env:
+        PRIVATE_KEY_PEM: ${{ secrets.PRIVATE_KEY_PEM }}
+        
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Log in to the Container registry
+      uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata (tags, labels) for Docker
+      id: meta
+      uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+  
+    - name: Build
+      run: |
+        make docker-build 
+        make docker-push
+      env:
+        registry: ${{ env.REGISTRY }}
+        IMG_TAG: ${{ env.IMG_TAG }}
+        
+    - name: Push to GitHub Container Registry
+      run: make docker-push
+      env:
+        IMG: ${{ env.IMAGE_NAME }}:${{env.IMG_TAG}}
