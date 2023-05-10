@@ -95,13 +95,6 @@ jobs:
             ${{ steps.images.outputs.ghcr}}
         tags: |
           type=ref,event=branch
-
-    - name: Monitor Service image with Snyk
-      uses: snyk/actions/docker@master
-      continue-on-error: true
-      with:
-        command: container monitor
-        image: ${DOCKER_IMAGE}
     
     - name: Build
       run: make docker-build
