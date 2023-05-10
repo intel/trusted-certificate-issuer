@@ -13,6 +13,24 @@ env:
   IMG_NAME: ${{ github.repository }}
 
 jobs:
+  codeQL:
+    runs-on: ubuntu-latest
+    environment:
+      name: dev
+      url: https://github.com
+
+    steps:    
+    - name: Checkout
+      uses: actions/checkout@master
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v2
+      with:
+        languages: go
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+
   trivy:
     runs-on: ubuntu-latest
     environment:
@@ -43,6 +61,14 @@ jobs:
         scan-type: 'fs'
         scan-ref: '.'
         trivy-config: trivy.yaml
+        
+    - name: Login to GitHub container registry
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v2
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Run Trivy vulnerability scanner for GitHub Registry image
       uses: aquasecurity/trivy-action@master
@@ -53,6 +79,14 @@ jobs:
         ignore-unfixed: true
         vuln-type: 'os,library'
         severity: 'CRITICAL,HIGH'
+        
+    - name: Login to DockerHub container registry
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v2
+      with:
+        registry: docker.io
+        username: ${{ secrets.DOCKERHUB_USER }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
     - name: Run Trivy vulnerability scanner for DockerHub image
       uses: aquasecurity/trivy-action@master
@@ -63,21 +97,3 @@ jobs:
         ignore-unfixed: true
         vuln-type: 'os,library'
         severity: 'CRITICAL,HIGH'
-
-  codeQL:
-    runs-on: ubuntu-latest
-    environment:
-      name: dev
-      url: https://github.com
-
-    steps:    
-    - name: Checkout
-      uses: actions/checkout@master
-
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v2
-      with:
-        languages: go
-
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
