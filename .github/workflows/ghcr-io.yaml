@@ -13,7 +13,7 @@ env:
 
 jobs:
   build-and-push-image-to-github-registry:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     permissions:
       contents: write
       packages: write
