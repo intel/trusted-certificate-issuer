@@ -86,9 +86,35 @@ jobs:
         ignore-unfixed: true
         vuln-type: 'os,library'
         severity: 'CRITICAL,HIGH'
-    
+
+    - name: Login to DockerHub container registry
+      uses: docker/login-action@v2
+      with:
+        registry: docker.io
+        username: ${{ secrets.DOCKERHUB_USER }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+      
+    - name: Prepare Images
+      id: images
+      run: |
+          DOCKER_IMAGE=docker.io/${IMG_NAME}:${IMG_TAG}
+          GHCR_IMAGE=ghcr.io/${IMG_NAME}:${IMG_TAG}
+          echo ::set-output name=dockerhub::${DOCKER_IMAGE}
+          echo ::set-output name=ghcr::${GHCR_IMAGE}
+
+    - name: Extract metadata (tags, labels) for Docker
+      id: metadata
+      uses: docker/metadata-action@v4
+      with:
+        images: |
+            ${{ steps.images.outputs.dockerhub }}
+            ${{ steps.images.outputs.ghcr}}
+        tags: |
+          type=ref,event=branch
+
     - name: Push to DockerHub Container Registry
       run: make docker-push
       env:
         REGISTRY: docker.io
-        IMG_TAG: ${{ env.IMG_TAG }} 
+        IMG_TAG: ${{ env.IMG_TAG }}
+        IMG: ${{ steps.images.outputs.dockerhub }}
