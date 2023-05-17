@@ -115,6 +115,5 @@ jobs:
     - name: Push to DockerHub Container Registry
       run: make docker-push
       env:
-        REGISTRY: docker.io
         IMG_TAG: ${{ env.IMG_TAG }}
         IMG: ${{ steps.images.outputs.dockerhub }}
