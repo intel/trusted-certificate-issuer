@@ -14,11 +14,6 @@ on:
         required: false
         default: ${{ github.repository }}
 
-env:
-  IMAGE_NAME: ${{ github.repository }}
-  username: ${{ secrets.DOCKERHUB_USER }}
-  password: ${{ secrets.DOCKERHUB_TOKEN }}
-
 jobs:
   scan-and-push-to-GitHub-registry:
     runs-on: ubuntu-22.04
