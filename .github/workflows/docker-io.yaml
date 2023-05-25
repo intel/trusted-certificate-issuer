@@ -26,8 +26,8 @@ jobs:
     - name: Login to DockerHub container registry
       uses: docker/login-action@v2
       with:
-        username: ${{ secrets.DOCKERHUB_USER }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+        username: text
+        password: text
       
     - name: Prepare Images
       id: images
