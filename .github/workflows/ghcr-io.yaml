@@ -14,6 +14,10 @@ on:
         required: false
         default: ${{ github.repository }}
 
+## GITHUB_TOKEN authentication
+permissions:
+  contents: write
+  
 jobs:
   scan-and-push-to-GitHub-registry:
     runs-on: ubuntu-22.04
@@ -82,13 +86,6 @@ jobs:
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
-    
-    - name: Run Trivy vulnerability scanner in fs mode
-      uses: aquasecurity/trivy-action@master
-      with:
-        scan-type: 'fs'
-        scan-ref: '.'
-        trivy-config: trivy.yaml
 
     - name: Run Trivy vulnerability scanner for GitHub Registry image
       uses: aquasecurity/trivy-action@master
@@ -99,6 +96,15 @@ jobs:
         ignore-unfixed: true
         vuln-type: 'os,library'
         severity: 'CRITICAL,HIGH'
+        
+    - name: Run Trivy in GitHub SBOM mode and submit results to Dependency Graph
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        format: 'github'
+        output: 'dependency-results.sbom.json'
+        image-ref: '.'
+        github-pat: ${{ secrets.GITHUB_TOKEN }}
       
     - name: Prepare Images
       id: images
