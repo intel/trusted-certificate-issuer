@@ -96,6 +96,7 @@ jobs:
         ignore-unfixed: true
         vuln-type: 'os,library'
         severity: 'CRITICAL,HIGH'
+        github-pat: ${{ secrets.GITHUB_TOKEN }}
         
     - name: Run Trivy in GitHub SBOM mode and submit results to Dependency Graph
       uses: aquasecurity/trivy-action@master
