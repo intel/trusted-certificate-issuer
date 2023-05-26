@@ -20,6 +20,9 @@ jobs:
     permissions:
       contents: write
       packages: write
+    environment:
+      name: dev
+      url: https://github.com
 
     steps:
     - name: Set up env
