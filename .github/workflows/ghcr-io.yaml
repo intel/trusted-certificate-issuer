@@ -20,7 +20,7 @@ permissions:
   
 jobs:
   scan-and-push-to-GitHub-registry:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     permissions:
       contents: write
       packages: write
