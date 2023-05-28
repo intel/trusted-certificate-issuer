@@ -90,16 +90,15 @@ jobs:
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
 
-    - name: Run Trivy vulnerability scanner for GitHub Registry image
+    - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: 'ghcr.io/intel/trusted-certificate-issuer:latest'
+        image-ref: 'docker.io/intel/trusted-certificate-issuer:latest'
         format: 'table'
         exit-code: '1'
         ignore-unfixed: true
         vuln-type: 'os,library'
         severity: 'CRITICAL,HIGH'
-        github-pat: ${{ secrets.GITHUB_TOKEN }}
         
     - name: Run Trivy in GitHub SBOM mode and submit results to Dependency Graph
       uses: aquasecurity/trivy-action@master
