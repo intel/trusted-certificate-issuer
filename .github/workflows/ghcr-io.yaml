@@ -74,7 +74,7 @@ jobs:
       if: github.event_name == 'pull_request'
       run: |
         make docker-build
-        make static-ci
+        make static
         make docker-push
       env:
         registry: ${{ env.REGISTRY }}
