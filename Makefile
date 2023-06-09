@@ -88,7 +88,7 @@ docker-build: ${DOCKER_BUILD_DEPS} vendor ## Build docker image with the manager
 enclave-config/privatekey.pem:
 	openssl genrsa -3 -out enclave-config/privatekey.pem 3072
 
-static: static-ci
+static-ci:
 	@echo "******       Trivy       ******"
 	@echo
 	trivy image ${IMG} --no-progress --format json
