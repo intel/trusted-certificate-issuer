@@ -1,0 +1,29 @@
+name: Export OneBOM
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  export_onebom:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install OneBOM CLI
+        run: |
+          npm install -g @onebom/cli
+
+      - name: Export OneBOM
+        run: onebom export --output onebom.yaml
+
+      - name: Commit and push OneBOM
+        run: |
+          git config --local user.email "k8s-bot@intel.com"
+          git config --local user.name "GitHub Action"
+          git add onebom.yaml
+          git commit -m "Update OneBOM [skip ci]"
+          git push origin main
