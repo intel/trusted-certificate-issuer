@@ -2,8 +2,10 @@ name: Export OneBOM
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main, 'release-*' ]
+    tags: [ '*' ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   export_onebom:
