@@ -70,9 +70,12 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USER }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Install staticcheck
-      run: go install honnef.co/go/tools/cmd/staticcheck@latest
-
+    - name: Install Trivy
+      run: |
+        wget https://github.com/aquasecurity/trivy/releases/download/v0.19.2/trivy_0.19.2_Linux-64bit.tar.gz
+        tar zxvf trivy_0.19.2_Linux-64bit.tar.gz
+        sudo mv trivy /usr/local/bin/
+          
     - name: Build and Push
       if: github.event_name == 'pull_request'
       run: |
