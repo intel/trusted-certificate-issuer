@@ -11,6 +11,9 @@ on:
 permissions:
   contents: write
   
+env:
+  IMG_NAME: intel/trusted-certificate-issuer
+
 jobs:
   scan-and-push-to-GitHub-registry:
     runs-on: ubuntu-20.04
