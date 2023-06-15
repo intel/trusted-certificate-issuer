@@ -123,6 +123,6 @@ jobs:
       
     - name: Push to DockerHub Container Registry
       run: |
-        docker pull $GHCR_IMAGE
-        docker tag $GHCR_IMAGE $DOCKER_IMAGE
-        docker push $DOCKER_IMAGE:latest
+        docker pull ghcr.io/intel/trusted-certificate-issuer:latest
+        docker tag ghcr.io/intel/trusted-certificate-issuer:latest docker.io/intel/trusted-certificate-issuer:latest
+        docker push docker.io/intel/trusted-certificate-issuer:latest
