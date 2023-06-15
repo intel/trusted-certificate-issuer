@@ -9,7 +9,7 @@ on:
 
 ## GITHUB_TOKEN authentication
 permissions:
-  contents: write-all
+  contents: write
   
 jobs:
   scan-and-push-to-GitHub-registry:
