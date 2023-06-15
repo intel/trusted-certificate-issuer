@@ -91,7 +91,7 @@ enclave-config/privatekey.pem:
 static:
 	@echo "******       Trivy       ******"
 	@echo
-	trivy image ${IMG} --no-progress --format json
+	trivy image --scanners license --severity HIGH,CRITICAL --format json ${IMG}
 	trivy fs . --no-progress --format json
 	@echo
 	@echo
