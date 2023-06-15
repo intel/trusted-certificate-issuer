@@ -6,17 +6,10 @@ on:
     tags: [ '*' ]
   pull_request:
     branches: [ main ]
-  workflow_call:
-    inputs:
-      service:
-        description: Name of the service
-        type: string
-        required: false
-        default: ${{ github.repository }}
 
 ## GITHUB_TOKEN authentication
 permissions:
-  contents: write
+  contents: write-all
   
 jobs:
   scan-and-push-to-GitHub-registry:
