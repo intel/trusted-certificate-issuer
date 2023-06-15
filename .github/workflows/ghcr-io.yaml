@@ -14,6 +14,8 @@ permissions:
 env:
   IMG_NAME: intel/trusted-certificate-issuer
   IMG_TAG: latest
+  DOCKER_IMAGE: docker.io/${IMG_NAME}:${IMG_TAG}
+  GHCR_IMAGE: ghcr.io/${IMG_NAME}:${IMG_TAG}
 
 jobs:
   scan-and-push:
@@ -95,24 +97,6 @@ jobs:
         output: 'dependency-results.sbom.json'
         image-ref: '.'
         github-pat: ${{ secrets.GITHUB_TOKEN }}
-      
-    - name: Prepare Images
-      id: images
-      run: |
-          DOCKER_IMAGE=docker.io/${IMG_NAME}:${IMG_TAG}
-          GHCR_IMAGE=ghcr.io/${IMG_NAME}:${IMG_TAG}
-          echo ::set-output name=dockerhub::${DOCKER_IMAGE}
-          echo ::set-output name=ghcr::${GHCR_IMAGE}
-
-    - name: Extract metadata (tags, labels) for Docker
-      id: metadata
-      uses: docker/metadata-action@v4
-      with:
-        images: |
-            ${{ steps.images.outputs.dockerhub }}
-            ${{ steps.images.outputs.ghcr}}
-        tags: |
-          type=ref,event=branch
 
     - name: Login to DockerHub container registry
       uses: docker/login-action@v2
@@ -123,6 +107,6 @@ jobs:
       
     - name: Push to DockerHub Container Registry
       run: |
-        docker pull ghcr.io/intel/trusted-certificate-issuer:latest
-        docker tag ghcr.io/intel/trusted-certificate-issuer:latest docker.io/intel/trusted-certificate-issuer:latest
-        docker push docker.io/intel/trusted-certificate-issuer:latest
+        docker pull $GHCR_IMAGE
+        docker tag $GHCR_IMAGE $DOCKER_IMAGE
+        docker push $DOCKER_IMAGE
