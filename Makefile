@@ -1,4 +1,4 @@
-REGISTRY ?= docker.io
+REGISTRY ?= ghcr.io
 IMG_NAME ?= intel/trusted-certificate-issuer
 IMG_TAG ?= latest
 # Image URL to use all building/pushing image targets
