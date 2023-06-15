@@ -120,14 +120,9 @@ jobs:
         registry: docker.io
         username: ${{ secrets.DOCKERHUB_USER }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-    - name: Check if the docker image exists locally
-      run: |
-        docker images --all
       
     - name: Push to DockerHub Container Registry
-      run: make docker-push
-      env:
-        REGISTRY: docker.io
-        IMG_TAG: ${{ env.IMG_TAG }}
-        IMG_NAME: ${{ env.IMG_NAME }}
+      run: |
+        docker pull $GHCR_IMAGE
+        docker tag $GHCR_IMAGE $DOCKER_IMAGE
+        docker push $DOCKER_IMAGE:latest
