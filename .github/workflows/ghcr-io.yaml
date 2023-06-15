@@ -13,6 +13,7 @@ permissions:
   
 env:
   IMG_NAME: intel/trusted-certificate-issuer
+  IMG_TAG: latest
 
 jobs:
   scan-and-push-to-GitHub-registry:
@@ -125,4 +126,4 @@ jobs:
       env:
         REGISTRY: docker.io
         IMG_TAG: ${{ env.IMG_TAG }}
-        IMG: ${{ steps.images.outputs.dockerhub }}
+        IMG_NAME: ${{ env.IMG_NAME }}
