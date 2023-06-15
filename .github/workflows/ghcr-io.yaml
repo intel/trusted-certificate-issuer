@@ -121,6 +121,11 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USER }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+    - name: Check if the docker image exists locally
+      run: |
+        - RESULT=$(docker images --all)
+        - echo $RESULT
+      
     - name: Push to DockerHub Container Registry
       run: make docker-push
       env:
