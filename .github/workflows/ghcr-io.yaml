@@ -69,7 +69,7 @@ jobs:
         make static
         make docker-push
       env:
-        registry: ghcr.io
+        REGISTRY: ghcr.io
         IMG_TAG: ${{ env.IMG_TAG }}
         
     - name: Initialize CodeQL
