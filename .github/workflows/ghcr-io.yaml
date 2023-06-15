@@ -16,7 +16,7 @@ env:
   IMG_TAG: latest
 
 jobs:
-  scan-and-push-to-GitHub-registry:
+  scan-and-push:
     runs-on: ubuntu-20.04
     permissions:
       contents: write
@@ -123,8 +123,7 @@ jobs:
 
     - name: Check if the docker image exists locally
       run: |
-        - RESULT=$(docker images --all)
-        - echo $RESULT
+        docker images --all
       
     - name: Push to DockerHub Container Registry
       run: make docker-push
