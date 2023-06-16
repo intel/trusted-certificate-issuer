@@ -16,7 +16,7 @@ ARG SDK_VERSION="2.19.100.3"
 ARG DCAP_VERSION="1.16.100.2"
 
 # Build the manager binary
-FROM ubuntu:jammy as builder
+FROM ubuntu:kinetic as builder
 
 ARG GO_VERSION="1.20"
 ARG SDK_VERSION
@@ -141,7 +141,7 @@ RUN mkdir -p /usr/local/share/package-licenses \
 # Clean runtime image which supposed to
 # contain all runtime dependecy packages
 ###
-FROM ubuntu:jammy as runtime
+FROM ubuntu:kinetic as runtime
 
 ARG SDK_VERSION
 ARG DCAP_VERSION
@@ -176,7 +176,7 @@ RUN apt-get update \
 # Image that downloads the source packages for
 #  the runtime GPL packages.
 ###
-FROM ubuntu:jammy as sources
+FROM ubuntu:kinetic as sources
 
 COPY --from=runtime /usr/local/share/package-install.log /usr/local/share/package-install.log
 COPY --from=runtime /usr/share/doc /tmp/runtime-doc
