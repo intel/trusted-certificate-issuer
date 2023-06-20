@@ -10,6 +10,7 @@ on:
 ## GITHUB_TOKEN authentication
 permissions:
   contents: write
+  security-events: write
   
 env:
   IMG_NAME: intel/trusted-certificate-issuer
@@ -66,7 +67,7 @@ jobs:
         tar zxvf trivy_0.42.0_Linux-64bit.tar.gz
         sudo mv trivy /usr/local/bin/
           
-    - name: Build and Push
+    - name: Build and push to GitHub container registry
       if: github.event_name == 'pull_request'
       run: |
         make docker-build
@@ -81,7 +82,7 @@ jobs:
       with:
         languages: go
         
-    - name: Perform CodeQL Analysis
+    - name: Perform CodeQL analysis
       uses: github/codeql-action/analyze@v2
         
     - name: Run Trivy in GitHub SBOM mode and submit results to Dependency Graph
@@ -93,7 +94,7 @@ jobs:
         image-ref: '.'
         github-pat: ${{ secrets.GITHUB_TOKEN }}
       
-    - name: Prepare Images
+    - name: Prepare images
       id: images
       run: |
           DOCKER_IMAGE=docker.io/${IMG_NAME}:${IMG_TAG}
@@ -108,7 +109,7 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USER }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
       
-    - name: Push to DockerHub Container Registry
+    - name: Push to DockerHub container registry
       run: |
         docker pull ghcr.io/intel/trusted-certificate-issuer:latest
         docker tag ghcr.io/intel/trusted-certificate-issuer:latest docker.io/intel/trusted-certificate-issuer:latest
