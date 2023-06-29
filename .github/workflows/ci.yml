@@ -6,6 +6,8 @@ on:
     tags: [ '*' ]
   pull_request:
     branches: [ main ]
+    types:
+      - closed
 
 ## GITHUB_TOKEN authentication
 permissions:
@@ -68,7 +70,7 @@ jobs:
         sudo mv trivy /usr/local/bin/
           
     - name: Build and push to GitHub container registry
-      if: github.event_name == 'pull_request'
+      if: github.event.pull_request.merged == true
       run: |
         make docker-build
         make static
@@ -103,6 +105,7 @@ jobs:
           echo ::set-output name=ghcr::${GHCR_IMAGE}
 
     - name: Login to DockerHub container registry
+      if: github.event.pull_request.merged == true
       uses: docker/login-action@v2
       with:
         registry: docker.io
