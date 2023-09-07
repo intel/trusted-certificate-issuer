@@ -7,38 +7,7 @@ on:
   pull_request:
     branches: [ main ]
 
-jobs:
-  snyk:
-    runs-on: ubuntu-latest
-    environment:
-      name: dev
-      url: https://github.com
-
-    steps:    
-    - name: Checkout
-      uses: actions/checkout@master
-      
-    - name: Set Up Snyk
-      uses: snyk/actions/setup@master
-        
-    - name: Run Snyk to check for vulnerabilities
-      continue-on-error: true
-      uses: snyk/actions/golang@master
-      env:
-        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-      with:   
-        json: true
-        args: --sarif-file-output=snyk.json
-        
-    - name: Check snyk file
-      run: | 
-        cat snyk.json
-        
-    - name: Upload result to GitHub Code Scanning
-      uses: github/codeql-action/upload-sarif@v2
-      with:
-       sarif_file: snyk.json
-       
+jobs:       
   codeQL-init:
     runs-on: ubuntu-latest
     environment:
