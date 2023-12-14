@@ -1,4 +1,4 @@
-name: CICD
+name: CI/CD
 
 on:
   push:
@@ -6,15 +6,24 @@ on:
     tags: [ '*' ]
   pull_request:
     branches: [ main ]
+    types:
+      - closed
 
+## GITHUB_TOKEN authentication
+permissions:
+  contents: write
+  security-events: write
+  
 env:
-  REGISTRY: ghcr.io
-  IMG_NAME: ${{ github.repository }}
+  IMG_NAME: intel/trusted-certificate-issuer
+  IMG_TAG: latest
 
 jobs:
-
-  build:
-    runs-on: ubuntu-latest
+  scan-and-push:
+    runs-on: ubuntu-20.04
+    permissions:
+      contents: write
+      packages: write
     environment:
       name: dev
       url: https://github.com
@@ -27,16 +36,14 @@ jobs:
         else
           echo "IMG_TAG=$GITHUB_REF_NAME" >> "$GITHUB_ENV"
         fi
-
-    - uses: actions/checkout@v2
-
+        
     - name: Set up Go
       uses: actions/setup-go@v2
       with:
         go-version: '>=1.19'
 
       # Don't run this since PR does not have access to secrets. 
-      # Let the make docker-build generate the temp. key
+      # Let the make docker-build generate the temp. key  
     - name: Setup signing key
       if: ${{ github.event_name != 'pull_request' }}
       run: |
@@ -45,21 +52,68 @@ jobs:
       shell: bash
       env:
         PRIVATE_KEY_PEM: ${{ secrets.PRIVATE_KEY_PEM }}
-
-    - name: Login to the container registry
+        
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      
+    - name: Login to GitHub container registry
       uses: docker/login-action@v2
       with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.repository_owner }}
+        registry: ghcr.io
+        username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build
-      run: make docker-build
+    - name: Install Trivy
+      run: |
+        wget https://github.com/aquasecurity/trivy/releases/download/v0.42.0/trivy_0.42.0_Linux-64bit.tar.gz
+        tar zxvf trivy_0.42.0_Linux-64bit.tar.gz
+        sudo mv trivy /usr/local/bin/
+          
+    - name: Build and push to GitHub container registry
+      if: github.event.pull_request.merged == true
+      run: |
+        make docker-build
+        make static
+        make docker-push
       env:
+        REGISTRY: ghcr.io
         IMG_TAG: ${{ env.IMG_TAG }}
+        
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v2
+      with:
+        languages: go
+        
+    - name: Perform CodeQL analysis
+      uses: github/codeql-action/analyze@v2
+        
+    - name: Run Trivy in GitHub SBOM mode and submit results to Dependency Graph
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        format: 'github'
+        output: 'dependency-results.sbom.json'
+        image-ref: '.'
+        github-pat: ${{ secrets.GITHUB_TOKEN }}
+      
+    - name: Prepare images
+      id: images
+      run: |
+          DOCKER_IMAGE=docker.io/${IMG_NAME}:${IMG_TAG}
+          GHCR_IMAGE=ghcr.io/${IMG_NAME}:${IMG_TAG}
+          echo ::set-output name=dockerhub::${DOCKER_IMAGE}
+          echo ::set-output name=ghcr::${GHCR_IMAGE}
 
-    - name: Push
-      if: ${{ github.event_name != 'pull_request' }}
-      run: make docker-push
-      env:
-        IMG_TAG: ${{ env.IMG_TAG }}
+    - name: Login to DockerHub container registry
+      if: github.event.pull_request.merged == true
+      uses: docker/login-action@v2
+      with:
+        registry: docker.io
+        username: ${{ secrets.DOCKERHUB_USER }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+      
+    - name: Push to DockerHub container registry
+      run: |
+        docker pull ghcr.io/intel/trusted-certificate-issuer:latest
+        docker tag ghcr.io/intel/trusted-certificate-issuer:latest docker.io/intel/trusted-certificate-issuer:latest
+        docker push docker.io/intel/trusted-certificate-issuer:latest
