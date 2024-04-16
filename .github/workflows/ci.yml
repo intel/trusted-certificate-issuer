@@ -7,6 +7,8 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions: read-all
+
 env:
   REGISTRY: ghcr.io
   IMG_NAME: ${{ github.repository }}
