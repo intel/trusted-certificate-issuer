@@ -45,7 +45,6 @@ import (
 )
 
 var (
-	errIssuerRef      = errors.New("error interpreting issuerRef")
 	errGetIssuer      = errors.New("error getting issuer")
 	errIssuerNotReady = errors.New("issuer is not ready")
 )

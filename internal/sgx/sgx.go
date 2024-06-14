@@ -186,9 +186,13 @@ func (ctx *SgxContext) findSignerInToken(name string) (crypto11.Signer, *x509.Ce
 	}
 
 	if cert != nil {
-		ctx.cryptoCtx.DeleteCertificate(nil, []byte(name), nil)
+		if err := ctx.cryptoCtx.DeleteCertificate(nil, []byte(name), nil); err != nil {
+			ctx.log.Info("Failed to delete obsolete certificate", "error", err)
+		}
 	} else if key != nil {
-		key.Delete()
+		if err := key.Delete(); err != nil {
+			ctx.log.Info("Failed to delete obsolete key", "error", err)
+		}
 	} else if errKey == nil && errCert == nil {
 		ctx.log.Info("No CA details found  in token", "signer", name)
 	} else {
@@ -217,8 +221,8 @@ func (ctx *SgxContext) RemoveSigner(name string) error {
 	s := ctx.signers.Get(name)
 	if s == nil {
 		if quoteInfo, ok := ctx.quotes[name]; ok {
-			ctx.p11Ctx.DestroyObject(ctx.p11Session, quoteInfo.prvKeyHandle)
-			ctx.p11Ctx.DestroyObject(ctx.p11Session, quoteInfo.pubKeyHandle)
+			ctx.p11Ctx.DestroyObject(ctx.p11Session, quoteInfo.prvKeyHandle) // nolint: errcheck
+			ctx.p11Ctx.DestroyObject(ctx.p11Session, quoteInfo.pubKeyHandle) // nolint: errcheck
 			delete(ctx.quotes, name)
 		}
 		return nil
@@ -288,7 +292,9 @@ func (ctx *SgxContext) ProvisionSigner(signerName string, encryptedKey []byte, c
 
 	_, err := ctx.provisionKey(signerName, wrappedSwk, wrappedPrKey)
 	if err != nil {
-		ctx.cryptoCtx.DeleteCertificate(nil, []byte(signerName), nil)
+		if err := ctx.cryptoCtx.DeleteCertificate(nil, []byte(signerName), nil); err != nil {
+			ctx.log.Info("Failed remove certificate for incomplete provision", "error", err)
+		}
 		return nil, fmt.Errorf("failed to provision key for signer '%s': %v", signerName, err)
 	}
 
@@ -296,7 +302,9 @@ func (ctx *SgxContext) ProvisionSigner(signerName string, encryptedKey []byte, c
 	if err != nil {
 		ctx.ctxLock.Lock()
 		defer ctx.ctxLock.Unlock()
-		ctx.cryptoCtx.DeleteCertificate(nil, []byte(signerName), nil)
+		if err := ctx.cryptoCtx.DeleteCertificate(nil, []byte(signerName), nil); err != nil {
+			ctx.log.Info("Failed remove certificate for incomplete provision", "error", err)
+		}
 		return nil, fmt.Errorf("failed to load the stored key: %v", err)
 	}
 	s.SetReady(cryptoSigner, cert)
@@ -358,7 +366,7 @@ func (ctx *SgxContext) provisionKey(signerName string, wrappedSWK []byte, wrappe
 	}
 
 	defer func() {
-		pCtx.DestroyObject(ctx.p11Session, swkHandle)
+		pCtx.DestroyObject(ctx.p11Session, swkHandle) // nolint: errcheck
 		// Once after unwrapping destroy quote info for this signer.
 		// The quote key objects get deleted by the CTK.
 		delete(ctx.quotes, signerName)
@@ -407,7 +415,7 @@ func (ctx *SgxContext) provisionKey(signerName string, wrappedSWK []byte, wrappe
 	}
 	publicKeyAttrs, err := ctx.p11Ctx.GetAttributeValue(ctx.p11Session, prvKey, template)
 	if err != nil {
-		pCtx.DestroyObject(ctx.p11Session, prvKey)
+		pCtx.DestroyObject(ctx.p11Session, prvKey) // nolint: errcheck
 		return nil, fmt.Errorf("failed to fetch public attributes: %v", err)
 	}
 
@@ -419,7 +427,7 @@ func (ctx *SgxContext) provisionKey(signerName string, wrappedSWK []byte, wrappe
 	}...)
 
 	if _, err := ctx.p11Ctx.CreateObject(ctx.p11Session, publicKeyAttrs); err != nil {
-		pCtx.DestroyObject(ctx.p11Session, prvKey)
+		pCtx.DestroyObject(ctx.p11Session, prvKey) // nolint: errcheck
 		return nil, fmt.Errorf("failed to add public key object: %v", err)
 	}
 
@@ -432,9 +440,9 @@ func (ctx *SgxContext) destroyP11Context() {
 	ctx.ctxLock.Lock()
 	defer ctx.ctxLock.Unlock()
 	if ctx.p11Ctx != nil {
-		ctx.p11Ctx.Logout(ctx.p11Session)
-		ctx.p11Ctx.CloseSession(ctx.p11Session)
-		ctx.p11Ctx.Destroy()
+		ctx.p11Ctx.Logout(ctx.p11Session)       // nolint: errcheck
+		ctx.p11Ctx.CloseSession(ctx.p11Session) // nolint: errcheck
+		ctx.p11Ctx.Destroy()                    // nolint: errcheck
 		ctx.p11Ctx = nil
 	}
 }
@@ -512,13 +520,13 @@ func (ctx *SgxContext) initializeSigner(s *signer.Signer) (err error) {
 	caCert, err := newCACertificate(dc)
 	if err != nil {
 		// cleanup previously created key
-		dc.Delete()
+		dc.Delete() // nolint: errcheck
 		return fmt.Errorf("failed to create CA certificate for '%s' signer: %v", s.Name(), err)
 	}
 
 	if err := ctx.cryptoCtx.ImportCertificateWithLabel(certID, []byte(s.Name()), caCert); err != nil {
 		// cleanup previously created key
-		dc.Delete()
+		dc.Delete() // nolint: errcheck
 		return err
 	}
 
@@ -543,8 +551,8 @@ func (ctx *SgxContext) ensureQuote(signerName string) (*keyprovider.QuoteInfo, e
 	ctx.log.Info("Generating Quote...")
 	quote, nonce, pubKey, err := ctx.generateQuote(pubHandle)
 	if err != nil {
-		ctx.p11Ctx.DestroyObject(ctx.p11Session, pubHandle)
-		ctx.p11Ctx.DestroyObject(ctx.p11Session, privHandle)
+		ctx.p11Ctx.DestroyObject(ctx.p11Session, pubHandle)  // nolint: errcheck
+		ctx.p11Ctx.DestroyObject(ctx.p11Session, privHandle) // nolint: errcheck
 		return nil, err
 	}
 	info := &quoteInfo{

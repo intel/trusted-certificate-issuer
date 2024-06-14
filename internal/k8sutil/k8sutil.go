@@ -10,7 +10,6 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -37,7 +36,7 @@ func GetNamespace() string {
 	if ns == "" {
 		// If environment variable not set, give it a try to fetch it from
 		// mounted filesystem by Kubernetes
-		data, err := ioutil.ReadFile(namespaceFile)
+		data, err := os.ReadFile(namespaceFile)
 		if err != nil {
 			klog.Infof("Could not read namespace from %q: %v", namespaceFile, err)
 		} else {
