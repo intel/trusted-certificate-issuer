@@ -25,17 +25,12 @@ const (
 	failed SignerState = "Failed"
 )
 
-type attestationRequest struct {
-	name, namespace string
-}
-
 type Signer struct {
 	crypto.Signer
 	cert  *x509.Certificate
 	name  string
 	state SignerState
 	err   error
-	req   attestationRequest
 }
 
 func NewSigner(name string) *Signer {
@@ -84,7 +79,6 @@ func (s *Signer) SetReady(cs crypto.Signer, cert *x509.Certificate) {
 	s.Signer = cs
 	s.cert = cert
 	s.err = nil
-	s.req = attestationRequest{}
 }
 
 type SignerMap struct {
@@ -103,7 +97,7 @@ func (sm *SignerMap) Names() []string {
 	sm.lock.RLock()
 	defer sm.lock.RUnlock()
 	names := []string{}
-	for name, _ := range sm.signers {
+	for name := range sm.signers {
 		names = append(names, name)
 	}
 	return names
